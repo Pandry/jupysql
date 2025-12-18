@@ -28,6 +28,8 @@ install_requires = [
     # we removed the share notebook button in this version
     "jupysql-plugin>=0.4.2",
     "ploomber-core>=0.2.7",
+    # Server extension for JupyterLab
+    "jupyter-server>=2.0.0",
 ]
 
 DEV = [
@@ -108,4 +110,16 @@ setup(
         "dev": DEV,
         "integration": DEV + INTEGRATION,
     },
+    entry_points={
+        "jupyter_serverproxy_servers": [
+            # For Jupyter Server Proxy if needed
+        ]
+    },
+    # Register Jupyter Server extension
+    data_files=[
+        (
+            "etc/jupyter/jupyter_server_config.d",
+            ["jupyter-config/jupyter_server_config.d/jupysql.json"],
+        ),
+    ],
 )

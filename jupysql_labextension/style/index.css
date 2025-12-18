@@ -1,0 +1,294 @@
+/* JupySQL Lab Extension Styles */
+
+/* Main browser widget */
+.jp-jupysql-browser-widget {
+  background-color: var(--jp-layout-color1);
+  color: var(--jp-ui-font-color1);
+  min-width: 250px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Browser container */
+.jp-jupysql-browser {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Header section */
+.jp-jupysql-browser-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--jp-border-color1);
+  background-color: var(--jp-layout-color2);
+  flex-shrink: 0;
+}
+
+.jp-jupysql-browser-title {
+  margin: 0;
+  font-size: var(--jp-ui-font-size1);
+  font-weight: 600;
+  color: var(--jp-ui-font-color1);
+}
+
+.jp-jupysql-browser-actions {
+  display: flex;
+  gap: 4px;
+}
+
+/* Buttons */
+.jp-jupysql-icon-button {
+  background: none;
+  border: 1px solid var(--jp-border-color2);
+  border-radius: 3px;
+  color: var(--jp-ui-font-color1);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px 8px;
+  transition: all 0.2s;
+}
+
+.jp-jupysql-icon-button:hover {
+  background-color: var(--jp-layout-color3);
+  border-color: var(--jp-brand-color1);
+}
+
+.jp-jupysql-icon-button:active {
+  background-color: var(--jp-brand-color1);
+  color: var(--jp-ui-inverse-font-color1);
+}
+
+.jp-jupysql-button {
+  background-color: var(--jp-brand-color1);
+  border: none;
+  border-radius: 3px;
+  color: var(--jp-ui-inverse-font-color1);
+  cursor: pointer;
+  font-size: var(--jp-ui-font-size1);
+  padding: 6px 12px;
+  transition: opacity 0.2s;
+}
+
+.jp-jupysql-button:hover {
+  opacity: 0.8;
+}
+
+.jp-jupysql-button:active {
+  opacity: 0.6;
+}
+
+/* Connection selector */
+.jp-jupysql-connection-selector {
+  padding: 12px;
+  border-bottom: 1px solid var(--jp-border-color1);
+  background-color: var(--jp-layout-color1);
+  flex-shrink: 0;
+}
+
+.jp-jupysql-label {
+  display: block;
+  font-size: var(--jp-ui-font-size0);
+  font-weight: 500;
+  margin-bottom: 4px;
+  color: var(--jp-ui-font-color2);
+}
+
+.jp-jupysql-select {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--jp-border-color2);
+  border-radius: 3px;
+  background-color: var(--jp-input-background);
+  color: var(--jp-ui-font-color1);
+  font-size: var(--jp-ui-font-size1);
+  font-family: var(--jp-ui-font-family);
+}
+
+.jp-jupysql-select:focus {
+  outline: none;
+  border-color: var(--jp-brand-color1);
+  box-shadow: 0 0 0 1px var(--jp-brand-color1);
+}
+
+/* Browser content */
+.jp-jupysql-browser-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+/* Tree styles */
+.jp-jupysql-tree {
+  user-select: none;
+}
+
+.jp-jupysql-tree-node-container {
+  width: 100%;
+}
+
+.jp-jupysql-tree-node {
+  display: flex;
+  align-items: center;
+  padding: 4px 8px;
+  cursor: pointer;
+  transition: background-color 0.1s;
+  position: relative;
+}
+
+.jp-jupysql-tree-node:hover {
+  background-color: var(--jp-layout-color2);
+}
+
+.jp-jupysql-tree-node:active {
+  background-color: var(--jp-layout-color3);
+}
+
+/* Current connection highlight */
+.jp-jupysql-current-connection {
+  font-weight: 600;
+}
+
+.jp-jupysql-current-indicator {
+  margin-left: auto;
+  color: var(--jp-brand-color1);
+  font-size: 10px;
+}
+
+/* Tree arrow */
+.jp-jupysql-tree-arrow {
+  display: inline-block;
+  width: 16px;
+  text-align: center;
+  margin-right: 4px;
+  font-size: 10px;
+  color: var(--jp-ui-font-color2);
+  flex-shrink: 0;
+}
+
+/* Tree icon */
+.jp-jupysql-tree-icon {
+  width: 16px;
+  height: 16px;
+  margin-right: 6px;
+  flex-shrink: 0;
+  fill: var(--jp-ui-font-color2);
+}
+
+/* Tree label */
+.jp-jupysql-tree-label {
+  flex: 1;
+  font-size: var(--jp-ui-font-size1);
+  color: var(--jp-ui-font-color1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Tree badge (for column types) */
+.jp-jupysql-tree-badge {
+  margin-left: 8px;
+  padding: 2px 6px;
+  background-color: var(--jp-layout-color3);
+  border-radius: 3px;
+  font-size: var(--jp-ui-font-size0);
+  color: var(--jp-ui-font-color2);
+  font-family: var(--jp-code-font-family);
+  flex-shrink: 0;
+}
+
+/* Tree children */
+.jp-jupysql-tree-children {
+  margin-left: 0;
+}
+
+/* Spinner */
+.jp-jupysql-spinner {
+  display: inline-block;
+  animation: jp-jupysql-spin 1s linear infinite;
+}
+
+@keyframes jp-jupysql-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.jp-jupysql-spinner-large {
+  text-align: center;
+  padding: 20px;
+  color: var(--jp-ui-font-color2);
+}
+
+/* Loading state */
+.jp-jupysql-browser-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--jp-ui-font-color2);
+}
+
+/* Error state */
+.jp-jupysql-browser-error {
+  padding: 20px;
+  text-align: center;
+}
+
+.jp-jupysql-error-message {
+  color: var(--jp-error-color1);
+  margin-bottom: 12px;
+}
+
+/* Empty state */
+.jp-jupysql-empty-state {
+  padding: 20px;
+  text-align: center;
+  color: var(--jp-ui-font-color2);
+}
+
+.jp-jupysql-empty-hint {
+  font-size: var(--jp-ui-font-size0);
+  margin-top: 8px;
+  opacity: 0.7;
+}
+
+/* Footer */
+.jp-jupysql-browser-footer {
+  padding: 8px 12px;
+  border-top: 1px solid var(--jp-border-color1);
+  background-color: var(--jp-layout-color2);
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.jp-jupysql-browser-footer small {
+  color: var(--jp-ui-font-color2);
+  font-size: var(--jp-ui-font-size0);
+}
+
+/* Scrollbar styling (webkit browsers) */
+.jp-jupysql-browser-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.jp-jupysql-browser-content::-webkit-scrollbar-track {
+  background: var(--jp-layout-color1);
+}
+
+.jp-jupysql-browser-content::-webkit-scrollbar-thumb {
+  background: var(--jp-scrollbar-thumb-color);
+  border-radius: 4px;
+}
+
+.jp-jupysql-browser-content::-webkit-scrollbar-thumb:hover {
+  background: var(--jp-scrollbar-thumb-hover-color);
+}

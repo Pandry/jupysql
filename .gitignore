@@ -25,6 +25,8 @@ examples/*.sql
 # temp testing assets
 src/tests/tmp
 
+venv
+
 scripts/large-table.sql
 
 *.py[cod]
@@ -74,3 +76,9 @@ result_images
 
 # Ignore Github codespace build artifact
 oryx-build-commands.txt
+
+# JupyterLab extension build artifacts
+jupysql/labextension
+node_modules/
+*.tsbuildinfo
+jupysql_labextension/lib/

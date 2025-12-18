@@ -1,0 +1,237 @@
+/**
+ * API client for JupySQL server extension.
+ *
+ * Provides methods to communicate with the REST API endpoints
+ * defined in src/sql/labextension/handlers.py
+ */
+
+import { URLExt } from '@jupyterlab/coreutils';
+import { ServerConnection } from '@jupyterlab/services';
+
+/**
+ * Connection information returned by the API
+ */
+export interface IConnection {
+  key: string;
+  url: string;
+  alias: string | null;
+  is_current: boolean;
+}
+
+/**
+ * Schema information
+ */
+export interface ISchema {
+  name: string;
+  is_default: boolean;
+}
+
+/**
+ * Table information
+ */
+export interface ITable {
+  name: string;
+}
+
+/**
+ * Column information
+ */
+export interface IColumn {
+  name: string;
+  type: string;
+}
+
+/**
+ * Table preview data
+ */
+export interface ITablePreview {
+  data: any[][];
+  columns: string[];
+  offset: number;
+  limit: number;
+}
+
+/**
+ * API response for connection operations
+ */
+export interface IConnectionResponse {
+  status: string;
+  message?: string;
+  connection_key?: string;
+  connection_label?: string;
+}
+
+/**
+ * API client class for JupySQL operations
+ */
+export class JupySQLAPI {
+  private serverSettings: ServerConnection.ISettings;
+  private baseUrl: string;
+
+  constructor() {
+    this.serverSettings = ServerConnection.makeSettings();
+    this.baseUrl = URLExt.join(this.serverSettings.baseUrl, 'jupysql');
+  }
+
+  /**
+   * Make a GET request to the API
+   */
+  private async get<T>(endpoint: string, params?: Record<string, string>): Promise<T> {
+    let url = URLExt.join(this.baseUrl, endpoint);
+
+    // Add query parameters if provided
+    if (params) {
+      const searchParams = new URLSearchParams(params);
+      url = `${url}?${searchParams.toString()}`;
+    }
+
+    const response = await ServerConnection.makeRequest(
+      url,
+      { method: 'GET' },
+      this.serverSettings
+    );
+
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.error || `API request failed: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Make a POST request to the API
+   */
+  private async post<T>(endpoint: string, body: any): Promise<T> {
+    const url = URLExt.join(this.baseUrl, endpoint);
+
+    const response = await ServerConnection.makeRequest(
+      url,
+      {
+        method: 'POST',
+        body: JSON.stringify(body),
+      },
+      this.serverSettings
+    );
+
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.error || `API request failed: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Get all database connections
+   */
+  async getConnections(): Promise<IConnection[]> {
+    const response = await this.get<{ connections: IConnection[] }>('connections');
+    return response.connections;
+  }
+
+  /**
+   * Add a new database connection
+   */
+  async addConnection(connectionString: string, alias?: string): Promise<IConnectionResponse> {
+    return this.post<IConnectionResponse>('connections', {
+      connection_string: connectionString,
+      alias,
+    });
+  }
+
+  /**
+   * Get schemas for a connection
+   */
+  async getSchemas(connectionKey: string): Promise<ISchema[]> {
+    const response = await this.get<{ schemas: ISchema[] }>('schemas', {
+      connection_key: connectionKey,
+    });
+    return response.schemas;
+  }
+
+  /**
+   * Get tables for a schema
+   */
+  async getTables(connectionKey: string, schema: string | null): Promise<ITable[]> {
+    const params: Record<string, string> = {
+      connection_key: connectionKey,
+    };
+
+    if (schema) {
+      params.schema = schema;
+    }
+
+    const response = await this.get<{ tables: ITable[] }>('tables', params);
+    return response.tables;
+  }
+
+  /**
+   * Get columns for a table
+   */
+  async getColumns(
+    connectionKey: string,
+    table: string,
+    schema: string | null
+  ): Promise<IColumn[]> {
+    const params: Record<string, string> = {
+      connection_key: connectionKey,
+      table,
+    };
+
+    if (schema) {
+      params.schema = schema;
+    }
+
+    const response = await this.get<{ columns: IColumn[] }>('columns', params);
+    return response.columns;
+  }
+
+  /**
+   * Get preview data for a table
+   */
+  async getTablePreview(
+    connectionKey: string,
+    table: string,
+    schema: string | null,
+    limit: number = 100,
+    offset: number = 0
+  ): Promise<ITablePreview> {
+    const params: Record<string, string> = {
+      connection_key: connectionKey,
+      table,
+      limit: limit.toString(),
+      offset: offset.toString(),
+    };
+
+    if (schema) {
+      params.schema = schema;
+    }
+
+    return this.get<ITablePreview>('preview', params);
+  }
+
+  /**
+   * Switch to a different database connection
+   */
+  async switchConnection(connectionKey: string): Promise<IConnectionResponse> {
+    return this.post<IConnectionResponse>('switch', {
+      connection_key: connectionKey,
+    });
+  }
+}
+
+/**
+ * Singleton API instance
+ */
+let apiInstance: JupySQLAPI | null = null;
+
+/**
+ * Get the API client instance (singleton)
+ */
+export function getAPI(): JupySQLAPI {
+  if (!apiInstance) {
+    apiInstance = new JupySQLAPI();
+  }
+  return apiInstance;
+}

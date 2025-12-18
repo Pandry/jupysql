@@ -1,3 +1,37 @@
+# For now, use setuptools for compatibility
+# The hatchling build system will be enabled once Node.js is available
+# Uncomment the sections below when ready to build the JupyterLab extension
+
+# [build-system]
+# requires = ["hatchling>=1.5.0", "jupyterlab>=4.0.0,<5", "hatch-jupyter-builder>=0.8"]
+# build-backend = "hatchling.build"
+
+# Extension build configuration (requires Node.js)
+# [tool.hatch.build.targets.sdist]
+# exclude = [".github", "binder", "node_modules", "jupysql_labextension/lib"]
+
+# [tool.hatch.build.targets.wheel.shared-data]
+# "jupysql/labextension" = "share/jupyter/labextensions/jupysql-labextension"
+# "install.json" = "share/jupyter/labextensions/jupysql-labextension/install.json"
+
+# [tool.hatch.build.hooks.jupyter-builder]
+# dependencies = ["hatch-jupyter-builder>=0.8"]
+# build-function = "hatch_jupyter_builder.npm_builder"
+# ensured-targets = ["jupysql/labextension/static/style.js", "jupysql/labextension/package.json"]
+# skip-if-exists = ["jupysql/labextension/static/style.js"]
+
+# [tool.hatch.build.hooks.jupyter-builder.build-kwargs]
+# path = "jupysql_labextension"
+# build_cmd = "build:prod"
+# npm = ["jlpm"]
+
+# [tool.hatch.build.hooks.jupyter-builder.editable-build-kwargs]
+# path = "jupysql_labextension"
+# build_cmd = "install:extension"
+# source_dir = "src"
+# build_dir = "lib"
+# npm = ["jlpm"]
+
 [tool.pytest.ini_options]
 addopts = "--pdbcls=IPython.terminal.debugger:Pdb"
 
