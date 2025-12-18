@@ -1,0 +1,111 @@
+.database-selector {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    border: 1px solid #d1d5da;
+    border-radius: 6px;
+    padding: 16px;
+    max-width: 100%;
+    background-color: var(--jp-layout-color1, #fff);
+    margin: 10px 0;
+}
+
+.database-selector-title {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: var(--jp-content-font-color1, #24292e);
+}
+
+.database-selector-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.database-selector-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--jp-content-font-color1, #24292e);
+    flex-shrink: 0;
+}
+
+.database-selector-select {
+    flex: 1;
+    min-width: 200px;
+    padding: 8px 12px;
+    font-size: 13px;
+    border: 1px solid #d1d5da;
+    border-radius: 6px;
+    background-color: var(--jp-layout-color1, #fff);
+    color: var(--jp-content-font-color1, #24292e);
+    cursor: pointer;
+    transition: border-color 0.15s ease;
+}
+
+.database-selector-select:hover {
+    border-color: #b1b5ba;
+}
+
+.database-selector-select:focus {
+    outline: none;
+    border-color: var(--jp-brand-color1, #0969da);
+    box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.1);
+}
+
+.database-selector-button {
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    border: 1px solid #d1d5da;
+    border-radius: 6px;
+    background-color: var(--jp-brand-color1, #0969da);
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+    white-space: nowrap;
+}
+
+.database-selector-button:hover {
+    background-color: var(--jp-brand-color0, #0860ca);
+}
+
+.database-selector-button:active {
+    background-color: #0550ae;
+}
+
+.database-selector-button:disabled {
+    background-color: #94d3a2;
+    cursor: not-allowed;
+}
+
+.database-selector-status {
+    margin-top: 12px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    display: none;
+}
+
+.database-selector-status.success {
+    display: block;
+    background-color: #dafbe1;
+    color: #1a7f37;
+    border: 1px solid #2ea44f;
+}
+
+.database-selector-status.error {
+    display: block;
+    background-color: #ffeef0;
+    color: #d73a49;
+    border: 1px solid #d73a49;
+}
+
+.database-selector-current-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    margin-left: 8px;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 10px;
+    background-color: var(--jp-success-color2, #2ea44f);
+    color: white;
+}

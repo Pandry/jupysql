@@ -1,0 +1,127 @@
+.database-browser {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    border: 1px solid #d1d5da;
+    border-radius: 6px;
+    padding: 16px;
+    max-width: 100%;
+    background-color: var(--jp-layout-color1, #fff);
+    margin: 10px 0;
+}
+
+.database-browser-title {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: var(--jp-content-font-color1, #24292e);
+}
+
+.db-tree {
+    list-style-type: none;
+    padding-left: 0;
+    margin: 0;
+}
+
+.db-tree ul {
+    list-style-type: none;
+    padding-left: 20px;
+    margin: 4px 0;
+}
+
+.db-tree-item {
+    padding: 4px 8px;
+    cursor: pointer;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    border-radius: 4px;
+    transition: background-color 0.15s ease;
+}
+
+.db-tree-item:hover {
+    background-color: var(--jp-layout-color2, #f6f8fa);
+}
+
+.db-tree-item.active {
+    background-color: var(--jp-brand-color2, #0969da);
+    color: white;
+}
+
+.db-tree-icon {
+    margin-right: 6px;
+    font-size: 12px;
+    width: 12px;
+    display: inline-block;
+    transition: transform 0.2s ease;
+}
+
+.db-tree-icon.expanded {
+    transform: rotate(90deg);
+}
+
+.db-tree-label {
+    font-size: 13px;
+    flex: 1;
+}
+
+.db-tree-badge {
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 10px;
+    background-color: var(--jp-brand-color3, #ddf4ff);
+    color: var(--jp-brand-color1, #0969da);
+    margin-left: 8px;
+}
+
+.db-connection-icon::before {
+    content: "🔌";
+}
+
+.db-schema-icon::before {
+    content: "📁";
+}
+
+.db-table-icon::before {
+    content: "📊";
+}
+
+.db-column-icon::before {
+    content: "▪";
+    font-size: 8px;
+}
+
+.db-current-indicator {
+    color: #2ea44f;
+    font-weight: 600;
+    margin-left: 4px;
+}
+
+.db-tree-children {
+    display: none;
+}
+
+.db-tree-children.expanded {
+    display: block;
+}
+
+.db-loading {
+    color: var(--jp-content-font-color2, #6a737d);
+    font-style: italic;
+    padding-left: 20px;
+    font-size: 12px;
+}
+
+.db-error {
+    color: #d73a49;
+    font-size: 12px;
+    padding: 8px;
+    background-color: #ffeef0;
+    border-radius: 4px;
+    margin: 4px 0;
+}
+
+.db-empty {
+    color: var(--jp-content-font-color2, #6a737d);
+    font-style: italic;
+    font-size: 12px;
+    padding-left: 20px;
+}
