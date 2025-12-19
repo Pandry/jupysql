@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  jupysql:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jupysql-lab
+    ports:
+      - "8888:8888"
+    volumes:
+      # Mount a local directory for notebooks
+      - ./notebooks:/workspace
+      # Mount for development (optional - uncomment to edit code live)
+      # - ./src:/app/src
+      # - ./jupysql_labextension/src:/app/jupysql_labextension/src
+    environment:
+      - JUPYTER_ENABLE_LAB=yes
+    command: >
+      jupyter lab
+      --ip=0.0.0.0
+      --port=8888
+      --no-browser
+      --allow-root
+      --NotebookApp.token=''
+      --NotebookApp.password=''
+    restart: unless-stopped
+
+  # Development version with watch mode
+  jupysql-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jupysql-lab-dev
+    ports:
+      - "8889:8888"
+    volumes:
+      - ./notebooks:/workspace
+      - ./src:/app/src
+      - ./jupysql_labextension/src:/app/jupysql_labextension/src
+    environment:
+      - JUPYTER_ENABLE_LAB=yes
+    command: >
+      jupyter lab
+      --ip=0.0.0.0
+      --port=8888
+      --no-browser
+      --allow-root
+      --watch
+      --NotebookApp.token=''
+      --NotebookApp.password=''
+    restart: unless-stopped

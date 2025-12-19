@@ -3,3 +3,17 @@ include NEWS.rst
 include LICENSE
 include src/sql/widgets/table_widget/css/*
 include src/sql/widgets/table_widget/js/*
+include src/sql/widgets/database_browser/css/*
+include src/sql/widgets/database_browser/js/*
+include src/sql/widgets/database_selector/css/*
+include src/sql/widgets/database_selector/js/*
+
+# JupyterLab extension
+include install.json
+include package.json
+include jupysql_labextension/package.json
+include jupysql_labextension/tsconfig.json
+recursive-include jupysql/labextension *
+
+# Jupyter Server extension config
+include jupyter-config/jupyter_server_config.d/jupysql.json

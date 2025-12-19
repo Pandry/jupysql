@@ -1,13 +1,26 @@
-## Describe your changes
+## Description
 
-## Issue number
+<!-- Describe your changes -->
 
-Closes #X
+## Type of Change
 
-## Checklist before requesting a review
+- [ ] Bug fix
+- [ ] New feature
+- [ ] Breaking change
+- [ ] Documentation update
+- [ ] JupyterLab extension change
 
-- [ ] Performed a self-review of my code
-- [ ] Formatted my code with [`pkgmt format`](https://ploomber-contributing.readthedocs.io/en/latest/contributing/submitting-pr.html#linting-formatting)
-- [ ] Added [tests](https://ploomber-contributing.readthedocs.io/en/latest/contributing/submitting-pr.html#testing) (when necessary).
-- [ ] Added [docstring](https://ploomber-contributing.readthedocs.io/en/latest/contributing/submitting-pr.html#documenting-changes-and-new-features) documentation and update the [changelog](https://ploomber-contributing.readthedocs.io/en/latest/contributing/submitting-pr.html#changelog) (when needed)
+## Checklist
 
+- [ ] Tests pass locally
+- [ ] Added/updated tests (if applicable)
+- [ ] Updated documentation (if applicable)
+- [ ] If JupyterLab extension changed: Compiled TypeScript (`npm run build`)
+
+## JupyterLab Extension Changes
+
+If you modified files in `jupysql_labextension/src/`:
+
+- [ ] Ran `npm run build` to compile TypeScript
+- [ ] Tested the extension in JupyterLab
+- [ ] Updated [BUILD.md](../BUILD.md) or [COMPILE.md](../COMPILE.md) if build process changed

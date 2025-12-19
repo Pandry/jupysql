@@ -49,6 +49,7 @@ export const DatabaseTree: React.FC<IDatabaseTreeProps> = ({
 }) => {
   const [treeData, setTreeData] = useState<ITreeNode[]>([]);
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
+  const [loadingNodes, setLoadingNodes] = useState<Set<string>>(new Set());
   const api = getAPI();
 
   // Initialize tree with connections
@@ -58,131 +59,161 @@ export const DatabaseTree: React.FC<IDatabaseTreeProps> = ({
       label: conn.alias || conn.url,
       type: 'connection',
       icon: folderIcon,
-      expanded: false,
-      children: [],
       metadata: conn,
     }));
     setTreeData(connectionNodes);
   }, [connections]);
 
   /**
+   * Load children for a node
+   */
+  const loadChildren = useCallback(
+    async (nodeId: string) => {
+      // Use functional setState to get the latest treeData
+      let shouldLoad = false;
+      let nodeToLoad: ITreeNode | null = null;
+
+      setTreeData(prevData => {
+        const node = findNode(prevData, nodeId);
+        if (!node) {
+          return prevData;
+        }
+
+        // Check if children are already loaded or currently loading
+        if (node.loading || (node.children && node.children.length > 0)) {
+          return prevData; // Already loaded or loading
+        }
+
+        nodeToLoad = node;
+        shouldLoad = true;
+        // Set loading state
+        return updateNode(prevData, nodeId, { loading: true });
+      });
+
+      if (!shouldLoad || !nodeToLoad) {
+        return;
+      }
+
+      try {
+        let children: ITreeNode[] = [];
+
+        if (nodeToLoad.type === 'connection') {
+          // Load schemas
+          const schemas = await api.getSchemas(nodeToLoad.metadata.key);
+          children = schemas.map(schema => ({
+            id: `${nodeId}-schema-${schema.name}`,
+            label: schema.name,
+            type: 'schema' as NodeType,
+            icon: folderIcon,
+            metadata: { schema: schema.name, connectionKey: nodeToLoad.metadata.key },
+          }));
+        } else if (nodeToLoad.type === 'schema') {
+          // Load tables
+          const tables = await api.getTables(
+            nodeToLoad.metadata.connectionKey,
+            nodeToLoad.metadata.schema
+          );
+          children = tables.map(table => ({
+            id: `${nodeId}-table-${table.name}`,
+            label: table.name,
+            type: 'table' as NodeType,
+            icon: folderIcon,
+            metadata: {
+              table: table.name,
+              schema: nodeToLoad.metadata.schema,
+              connectionKey: nodeToLoad.metadata.connectionKey,
+            },
+          }));
+        } else if (nodeToLoad.type === 'table') {
+          // Load columns
+          const columns = await api.getColumns(
+            nodeToLoad.metadata.connectionKey,
+            nodeToLoad.metadata.table,
+            nodeToLoad.metadata.schema
+          );
+          children = columns.map(column => ({
+            id: `${nodeId}-col-${column.name}`,
+            label: column.name,
+            type: 'column' as NodeType,
+            badge: column.type,
+            metadata: {
+              column: column.name,
+              columnType: column.type,
+              table: nodeToLoad.metadata.table,
+              schema: nodeToLoad.metadata.schema,
+              connectionKey: nodeToLoad.metadata.connectionKey,
+            },
+          }));
+        }
+
+        // Update node with children using functional setState
+        setTreeData(prevData =>
+          updateNode(prevData, nodeId, {
+            children,
+            loading: false,
+          })
+        );
+      } catch (error) {
+        console.error('Error loading children:', error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        // Add error node using functional setState
+        setTreeData(prevData =>
+          updateNode(prevData, nodeId, {
+            children: [
+              {
+                id: `${nodeId}-error`,
+                label: `Error: ${errorMessage}`,
+                type: 'column' as NodeType,
+                metadata: {},
+              },
+            ],
+            loading: false,
+          })
+        );
+      }
+    },
+    [api]
+  );
+
+  /**
    * Toggle node expansion
    */
   const toggleNode = useCallback(
     async (nodeId: string) => {
-      const newExpanded = new Set(expandedNodes);
+      // Check current state
+      const isCurrentlyExpanded = expandedNodes.has(nodeId);
 
-      if (newExpanded.has(nodeId)) {
-        // Collapse
-        newExpanded.delete(nodeId);
-        setExpandedNodes(newExpanded);
+      if (isCurrentlyExpanded) {
+        // Collapse - just update expandedNodes
+        setExpandedNodes(prev => {
+          const newExpanded = new Set(prev);
+          newExpanded.delete(nodeId);
+          return newExpanded;
+        });
       } else {
-        // Expand and load children if needed
-        newExpanded.add(nodeId);
-        setExpandedNodes(newExpanded);
+        // Expand - show loading state, load children, then mark as expanded
+        setLoadingNodes(prev => new Set(prev).add(nodeId));
 
-        // Find the node and load children
-        await loadChildren(nodeId);
+        try {
+          await loadChildren(nodeId);
+
+          // After children are loaded, mark as expanded and remove from loading
+          setExpandedNodes(prev => {
+            const newExpanded = new Set(prev);
+            newExpanded.add(nodeId);
+            return newExpanded;
+          });
+        } finally {
+          setLoadingNodes(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(nodeId);
+            return newSet;
+          });
+        }
       }
     },
-    [expandedNodes]
+    [expandedNodes, loadChildren]
   );
-
-  /**
-   * Load children for a node
-   */
-  const loadChildren = async (nodeId: string) => {
-    const node = findNode(treeData, nodeId);
-    if (!node || node.children && node.children.length > 0) {
-      return; // Already loaded
-    }
-
-    // Set loading state
-    setTreeData(prevData => updateNode(prevData, nodeId, { loading: true }));
-
-    try {
-      let children: ITreeNode[] = [];
-
-      if (node.type === 'connection') {
-        // Load schemas
-        const schemas = await api.getSchemas(node.metadata.key);
-        children = schemas.map(schema => ({
-          id: `${nodeId}-schema-${schema.name}`,
-          label: schema.name,
-          type: 'schema' as NodeType,
-          icon: folderIcon,
-          expanded: false,
-          children: [],
-          metadata: { schema: schema.name, connectionKey: node.metadata.key },
-        }));
-      } else if (node.type === 'schema') {
-        // Load tables
-        const tables = await api.getTables(
-          node.metadata.connectionKey,
-          node.metadata.schema
-        );
-        children = tables.map(table => ({
-          id: `${nodeId}-table-${table.name}`,
-          label: table.name,
-          type: 'table' as NodeType,
-          icon: folderIcon,
-          expanded: false,
-          children: [],
-          metadata: {
-            table: table.name,
-            schema: node.metadata.schema,
-            connectionKey: node.metadata.connectionKey,
-          },
-        }));
-      } else if (node.type === 'table') {
-        // Load columns
-        const columns = await api.getColumns(
-          node.metadata.connectionKey,
-          node.metadata.table,
-          node.metadata.schema
-        );
-        children = columns.map(column => ({
-          id: `${nodeId}-col-${column.name}`,
-          label: column.name,
-          type: 'column' as NodeType,
-          badge: column.type,
-          metadata: {
-            column: column.name,
-            columnType: column.type,
-            table: node.metadata.table,
-            schema: node.metadata.schema,
-            connectionKey: node.metadata.connectionKey,
-          },
-        }));
-      }
-
-      // Update node with children
-      setTreeData(prevData =>
-        updateNode(prevData, nodeId, {
-          children,
-          loading: false,
-          expanded: true,
-        })
-      );
-    } catch (error) {
-      console.error('Error loading children:', error);
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      // Add error node
-      setTreeData(prevData =>
-        updateNode(prevData, nodeId, {
-          children: [
-            {
-              id: `${nodeId}-error`,
-              label: `Error: ${errorMessage}`,
-              type: 'column' as NodeType,
-              metadata: {},
-            },
-          ],
-          loading: false,
-        })
-      );
-    }
-  };
 
   /**
    * Find a node in the tree
@@ -257,6 +288,7 @@ export const DatabaseTree: React.FC<IDatabaseTreeProps> = ({
    */
   const renderNode = (node: ITreeNode, level: number = 0): JSX.Element => {
     const isExpanded = expandedNodes.has(node.id);
+    const isLoading = loadingNodes.has(node.id) || node.loading;
     const hasChildren = node.type !== 'column';
     const indentStyle = { paddingLeft: `${level * 16 + 8}px` };
 
@@ -271,7 +303,7 @@ export const DatabaseTree: React.FC<IDatabaseTreeProps> = ({
           {/* Expand/collapse arrow */}
           {hasChildren && (
             <span className="jp-jupysql-tree-arrow">
-              {node.loading ? (
+              {isLoading ? (
                 <span className="jp-jupysql-spinner">⟳</span>
               ) : isExpanded ? (
                 '▼'

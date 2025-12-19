@@ -34,6 +34,7 @@ Run SQL in Jupyter/IPython via a `%sql` and `%%sql` magics.
 - [SQL composition (no more hard-to-debug CTEs!)](https://jupysql.ploomber.io/en/latest/compose.html)
 - [Plot massive datasets without blowing up memory](https://jupysql.ploomber.io/en/latest/plot.html)
 - [DuckDB integration](https://jupysql.ploomber.io/en/latest/integrations/duckdb.html)
+- **JupyterLab Extension** - Database browser sidebar for exploring connections, schemas, tables, and columns
 
 ## Installation
 
@@ -46,6 +47,20 @@ or:
 ```
 conda install jupysql -c conda-forge
 ```
+
+### JupyterLab Extension (Optional)
+
+For the database browser sidebar in JupyterLab:
+
+**Using Docker (Recommended):**
+```bash
+docker-compose up jupysql
+```
+
+**Local Installation:**
+See [BUILD.md](BUILD.md) for detailed instructions.
+
+After making code changes, see [COMPILE.md](COMPILE.md) for compilation instructions.
 
 ## Documentation
 
