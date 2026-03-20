@@ -94,24 +94,28 @@ export const DatabaseTree: React.FC<IDatabaseTreeProps> = ({
         return;
       }
 
+      // Capture in a const so TypeScript knows it's non-null
+      // (TS doesn't track assignments inside callbacks)
+      const currentNode: ITreeNode = nodeToLoad;
+
       try {
         let children: ITreeNode[] = [];
 
-        if (nodeToLoad.type === 'connection') {
+        if (currentNode.type === 'connection') {
           // Load schemas
-          const schemas = await api.getSchemas(nodeToLoad.metadata.key);
+          const schemas = await api.getSchemas(currentNode.metadata.key);
           children = schemas.map(schema => ({
             id: `${nodeId}-schema-${schema.name}`,
             label: schema.name,
             type: 'schema' as NodeType,
             icon: folderIcon,
-            metadata: { schema: schema.name, connectionKey: nodeToLoad.metadata.key },
+            metadata: { schema: schema.name, connectionKey: currentNode.metadata.key },
           }));
-        } else if (nodeToLoad.type === 'schema') {
+        } else if (currentNode.type === 'schema') {
           // Load tables
           const tables = await api.getTables(
-            nodeToLoad.metadata.connectionKey,
-            nodeToLoad.metadata.schema
+            currentNode.metadata.connectionKey,
+            currentNode.metadata.schema
           );
           children = tables.map(table => ({
             id: `${nodeId}-table-${table.name}`,
@@ -120,16 +124,16 @@ export const DatabaseTree: React.FC<IDatabaseTreeProps> = ({
             icon: folderIcon,
             metadata: {
               table: table.name,
-              schema: nodeToLoad.metadata.schema,
-              connectionKey: nodeToLoad.metadata.connectionKey,
+              schema: currentNode.metadata.schema,
+              connectionKey: currentNode.metadata.connectionKey,
             },
           }));
-        } else if (nodeToLoad.type === 'table') {
+        } else if (currentNode.type === 'table') {
           // Load columns
           const columns = await api.getColumns(
-            nodeToLoad.metadata.connectionKey,
-            nodeToLoad.metadata.table,
-            nodeToLoad.metadata.schema
+            currentNode.metadata.connectionKey,
+            currentNode.metadata.table,
+            currentNode.metadata.schema
           );
           children = columns.map(column => ({
             id: `${nodeId}-col-${column.name}`,
@@ -139,9 +143,9 @@ export const DatabaseTree: React.FC<IDatabaseTreeProps> = ({
             metadata: {
               column: column.name,
               columnType: column.type,
-              table: nodeToLoad.metadata.table,
-              schema: nodeToLoad.metadata.schema,
-              connectionKey: nodeToLoad.metadata.connectionKey,
+              table: currentNode.metadata.table,
+              schema: currentNode.metadata.schema,
+              connectionKey: currentNode.metadata.connectionKey,
             },
           }));
         }

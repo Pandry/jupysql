@@ -53,8 +53,11 @@ COPY --from=builder /build/ /app/
 
 # Install JupySQL in editable mode with the built extension
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir 'jupyterlab>=4.0.0,<5' && \
-    pip install -e .
+    pip install --no-cache-dir 'jupyterlab>=4.0.0,<5'
+
+RUN ls -la *
+RUN touch README.md
+RUN pip install -e .
 
 # Enable the Jupyter Server extension
 RUN jupyter server extension enable sql.labextension

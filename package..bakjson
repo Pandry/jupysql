@@ -1,0 +1,30 @@
+{
+  "name": "jupysql-root",
+  "version": "0.11.2",
+  "description": "Root workspace for JupySQL with JupyterLab extension",
+  "private": true,
+  "scripts": {
+    "build": "cd jupysql_labextension && jlpm run build",
+    "build:prod": "cd jupysql_labextension && jlpm run build:prod",
+    "clean": "cd jupysql_labextension && jlpm run clean",
+    "install:extension": "cd jupysql_labextension && jlpm install",
+    "watch": "cd jupysql_labextension && jlpm run watch"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ploomber/jupysql.git"
+  },
+  "keywords": [
+    "jupyter",
+    "jupyterlab",
+    "jupyterlab-extension",
+    "sql",
+    "database"
+  ],
+  "author": "Ploomber",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/ploomber/jupysql/issues"
+  },
+  "homepage": "https://github.com/ploomber/jupysql#readme"
+}
