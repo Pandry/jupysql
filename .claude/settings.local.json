@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wc -l /home/pandry/work/AIF/jupysql/src/tests/test_*.py)",
+      "Bash(wc -l /home/pandry/work/AIF/jupysql/src/tests/integration/test_*.py)"
+    ]
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "module": "CommonJS",
+    "lib": ["ES2017", "DOM"],
+    "declaration": true,
+    "strict": false,
+    "skipLibCheck": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "esModuleInterop": true,
+    "moduleResolution": "node",
+    "outDir": "./lib",
+    "rootDir": "src",
+    "jsx": "react",
+    "sourceMap": true
+  },
+  "include": ["src/**/*"]
+}

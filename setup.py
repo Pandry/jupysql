@@ -15,6 +15,34 @@ with open("src/sql/__init__.py", "rb") as f:
         ast.literal_eval(_version_re.search(f.read().decode("utf-8")).group(1))
     )
 
+LAB_EXT_NAME = "jupysql-labextension"
+LAB_EXT_SRC = "jupysql/labextension"
+
+
+def _collect_data_files():
+    """Collect data_files for setup(), including the built JupyterLab extension."""
+    files = [
+        (
+            "etc/jupyter/jupyter_server_config.d",
+            ["jupyter-config/jupyter_server_config.d/jupysql.json"],
+        ),
+    ]
+    # Include the pre-built JupyterLab extension bundle if it exists.
+    # The bundle is produced by `npm run build:labextension:dev` (see Dockerfile /
+    # COMPILE.md).  During `pip install -e .` inside Docker the directory is already
+    # present; outside Docker it may be absent, which is fine – the extension will
+    # simply not be registered as a labextension until the npm build is run.
+    if os.path.isdir(LAB_EXT_SRC):
+        dest_prefix = f"share/jupyter/labextensions/{LAB_EXT_NAME}"
+        for root, _dirs, fnames in os.walk(LAB_EXT_SRC):
+            rel = os.path.relpath(root, LAB_EXT_SRC)
+            dest = dest_prefix if rel == "." else os.path.join(dest_prefix, rel)
+            file_paths = [os.path.join(root, f) for f in fnames]
+            if file_paths:
+                files.append((dest, file_paths))
+    return files
+
+
 install_requires = [
     "prettytable>=3.12.0",
     # IPython dropped support for Python 3.8
@@ -115,11 +143,6 @@ setup(
             # For Jupyter Server Proxy if needed
         ]
     },
-    # Register Jupyter Server extension
-    data_files=[
-        (
-            "etc/jupyter/jupyter_server_config.d",
-            ["jupyter-config/jupyter_server_config.d/jupysql.json"],
-        ),
-    ],
+    # Register Jupyter Server extension and JupyterLab extension
+    data_files=_collect_data_files(),
 )

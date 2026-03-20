@@ -11,9 +11,6 @@ services:
     volumes:
       # Mount a local directory for notebooks
       - ./notebooks:/workspace
-      # Mount for development (optional - uncomment to edit code live)
-      # - ./src:/app/src
-      # - ./jupysql_labextension/src:/app/jupysql_labextension/src
     environment:
       - JUPYTER_ENABLE_LAB=yes
     command: >
@@ -24,9 +21,16 @@ services:
       --allow-root
       --NotebookApp.token=''
       --NotebookApp.password=''
+    healthcheck:
+      test: ["CMD", "python3", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8888/jupysql/connections', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
     restart: unless-stopped
 
-  # Development version with watch mode
+  # Development version with live source mounts
   jupysql-dev:
     build:
       context: .
@@ -50,3 +54,16 @@ services:
       --NotebookApp.token=''
       --NotebookApp.password=''
     restart: unless-stopped
+
+  # Selenium test runner - runs against the jupysql service
+  selenium-tests:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    container_name: jupysql-selenium-tests
+    depends_on:
+      jupysql:
+        condition: service_healthy
+    environment:
+      - JUPYTERLAB_URL=http://jupysql:8888
+    restart: "no"

@@ -1,6 +1,6 @@
 # Multi-stage Dockerfile for JupySQL with JupyterLab Extension
 # Stage 1: Build the JupyterLab extension
-FROM python:3.11-slim as builder
+FROM docker.io/library/python:3.11-slim AS builder
 
 # Install Node.js and build dependencies
 RUN apt-get update && apt-get install -y \
@@ -14,18 +14,17 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /build
 
 # Copy package files first for better caching
-COPY package.json setup.py setup.cfg pyproject.toml MANIFEST.in ./
+COPY package.json setup.py setup.cfg pyproject.toml MANIFEST.in README.md ./
 COPY jupysql_labextension/package.json jupysql_labextension/
 COPY jupysql_labextension/tsconfig.json jupysql_labextension/
 
 # Copy source code
 COPY src/ src/
-COPY jupysql/ jupysql/
 COPY jupysql_labextension/src/ jupysql_labextension/src/
 COPY jupysql_labextension/style/ jupysql_labextension/style/
 COPY jupyter-config/ jupyter-config/
 
-# Install Python dependencies
+# Install Python dependencies (provides jupyter labextension build command)
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir 'jupyterlab>=4.0.0,<5'
 
@@ -39,7 +38,7 @@ RUN npm install && \
 RUN ls -la ../jupysql/labextension/ || echo "Warning: labextension directory not created"
 
 # Stage 2: Final image with JupySQL installed
-FROM python:3.11-slim
+FROM docker.io/library/python:3.11-slim
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
@@ -51,16 +50,24 @@ WORKDIR /app
 # Copy built extension and source from builder
 COPY --from=builder /build/ /app/
 
-# Install JupySQL in editable mode with the built extension
+# Install JupySQL with the built extension
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir 'jupyterlab>=4.0.0,<5'
 
-RUN ls -la *
-RUN touch README.md
 RUN pip install -e .
 
-# Enable the Jupyter Server extension
-RUN jupyter server extension enable sql.labextension
+# pip install -e does not reliably copy data_files for editable installs in
+# modern pip (PEP 660).  Copy both artefacts explicitly.
+
+# 1. JupyterLab frontend extension → labextensions directory
+RUN mkdir -p /usr/local/share/jupyter/labextensions/jupysql-labextension && \
+    cp -r jupysql/labextension/. /usr/local/share/jupyter/labextensions/jupysql-labextension/
+
+# 2. Jupyter Server extension config → sys-prefix config dir so the server
+#    picks it up at startup without needing 'jupyter server extension enable'
+RUN mkdir -p /usr/local/etc/jupyter/jupyter_server_config.d/ && \
+    cp jupyter-config/jupyter_server_config.d/jupysql.json \
+       /usr/local/etc/jupyter/jupyter_server_config.d/jupysql.json
 
 # Verify installation
 RUN jupyter server extension list && \

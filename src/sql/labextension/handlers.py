@@ -5,6 +5,7 @@ import traceback
 from typing import Any, Dict, List
 
 from jupyter_server.base.handlers import APIHandler
+from jupyter_server.utils import url_path_join
 from tornado import web
 from jupyter_server.services.kernels.kernelmanager import AsyncMappingKernelManager
 
@@ -587,14 +588,15 @@ def setup_handlers(web_app, log):
     host_pattern = ".*$"
     base_url = web_app.settings["base_url"]
 
-    # Define all handlers
+    # Define all handlers — url_path_join handles the base_url prefix correctly
+    # and avoids double-slashes when base_url is "/"
     handlers = [
-        (f"{base_url}jupysql/connections", ConnectionsHandler),
-        (f"{base_url}jupysql/schemas", SchemasHandler),
-        (f"{base_url}jupysql/tables", TablesHandler),
-        (f"{base_url}jupysql/columns", ColumnsHandler),
-        (f"{base_url}jupysql/preview", PreviewHandler),
-        (f"{base_url}jupysql/switch", SwitchConnectionHandler),
+        (url_path_join(base_url, "jupysql", "connections"), ConnectionsHandler),
+        (url_path_join(base_url, "jupysql", "schemas"), SchemasHandler),
+        (url_path_join(base_url, "jupysql", "tables"), TablesHandler),
+        (url_path_join(base_url, "jupysql", "columns"), ColumnsHandler),
+        (url_path_join(base_url, "jupysql", "preview"), PreviewHandler),
+        (url_path_join(base_url, "jupysql", "switch"), SwitchConnectionHandler),
     ]
 
     # Add handlers to the web app
