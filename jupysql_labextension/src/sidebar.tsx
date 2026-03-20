@@ -195,35 +195,44 @@ interface IConnectionDetailsPanelProps {
   connection: IConnection;
   onClose: () => void;
   onSwitch: (key: string) => void;
-  onSaveAlias: (connection: IConnection, newAlias: string) => Promise<void>;
+  onSave: (connection: IConnection, newUrl: string, newAlias: string) => Promise<void>;
+  onDelete: (connection: IConnection) => Promise<void>;
 }
 
 const ConnectionDetailsPanel: React.FC<IConnectionDetailsPanelProps> = ({
   connection,
   onClose,
   onSwitch,
-  onSaveAlias,
+  onSave,
+  onDelete,
 }) => {
+  const [urlValue, setUrlValue] = useState(connection.url);
   const [alias, setAlias] = useState(connection.alias || '');
   const [saving, setSaving] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const typeName = getDbTypeName(connection.url);
-  const icon = getDbIcon(connection.url);
+  const typeName = getDbTypeName(urlValue.trim() || connection.url);
+  const icon = getDbIcon(urlValue.trim() || connection.url);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape' && !saving) onClose();
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [onClose]);
+  }, [onClose, saving]);
+
+  const urlChanged   = urlValue.trim() !== connection.url;
+  const aliasChanged = alias.trim() !== (connection.alias || '');
+  const changed = urlChanged || aliasChanged;
 
   const handleSave = async () => {
+    if (!urlValue.trim()) { setError('URL is required'); return; }
     setSaving(true);
     setError(null);
     try {
-      await onSaveAlias(connection, alias.trim());
+      await onSave(connection, urlValue.trim(), alias.trim());
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -231,13 +240,24 @@ const ConnectionDetailsPanel: React.FC<IConnectionDetailsPanelProps> = ({
     }
   };
 
-  const aliasChanged = alias.trim() !== (connection.alias || '');
+  const handleDelete = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      await onDelete(connection);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      setSaving(false);
+      setConfirmDelete(false);
+    }
+  };
 
   return (
     <div
       className="jp-jupysql-dialog-overlay"
       onClick={e => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget && !saving) onClose();
       }}
     >
       <div className="jp-jupysql-dialog" role="dialog" aria-modal="true">
@@ -252,6 +272,7 @@ const ConnectionDetailsPanel: React.FC<IConnectionDetailsPanelProps> = ({
           <button
             className="jp-jupysql-dialog-close"
             onClick={onClose}
+            disabled={saving}
             aria-label="Close"
           >
             ✕
@@ -270,16 +291,20 @@ const ConnectionDetailsPanel: React.FC<IConnectionDetailsPanelProps> = ({
             </div>
           )}
 
-          {/* URL (read-only) */}
+          {/* URL (editable) */}
           <div className="jp-jupysql-form-group">
-            <label className="jp-jupysql-form-label">URL</label>
+            <label className="jp-jupysql-form-label">
+              URL <span className="jp-jupysql-required">*</span>
+            </label>
             <input
               type="text"
-              value={connection.url}
-              readOnly
-              className="jp-jupysql-input jp-jupysql-input-readonly"
-              title={connection.url}
+              value={urlValue}
+              onChange={e => setUrlValue(e.target.value)}
+              placeholder="e.g. duckdb:// or postgresql://user:pass@host/db"
+              className="jp-jupysql-input"
+              disabled={saving}
             />
+            {urlChanged && <DbTypePreview url={urlValue} />}
           </div>
 
           {/* Alias (editable) */}
@@ -303,7 +328,47 @@ const ConnectionDetailsPanel: React.FC<IConnectionDetailsPanelProps> = ({
             </p>
           )}
 
+          {/* Delete confirmation prompt */}
+          {confirmDelete && (
+            <p className="jp-jupysql-dialog-error jp-jupysql-delete-confirm">
+              Remove this connection from all kernels?
+            </p>
+          )}
+
           <div className="jp-jupysql-dialog-actions">
+            {/* Delete — left-aligned */}
+            {!confirmDelete ? (
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(true)}
+                disabled={saving}
+                className="jp-jupysql-button jp-jupysql-button-danger"
+              >
+                Delete
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(false)}
+                  disabled={saving}
+                  className="jp-jupysql-button jp-jupysql-button-secondary"
+                >
+                  Keep
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  disabled={saving}
+                  className="jp-jupysql-button jp-jupysql-button-danger"
+                >
+                  {saving ? 'Deleting…' : 'Confirm delete'}
+                </button>
+              </>
+            )}
+
+            <span style={{ flex: 1 }} />
+
             <button
               type="button"
               onClick={onClose}
@@ -312,27 +377,26 @@ const ConnectionDetailsPanel: React.FC<IConnectionDetailsPanelProps> = ({
             >
               Cancel
             </button>
-            {!connection.is_current && (
+            {!connection.is_current && !confirmDelete && (
               <button
                 type="button"
-                onClick={() => {
-                  onSwitch(connection.key);
-                  onClose();
-                }}
+                onClick={() => { onSwitch(connection.key); onClose(); }}
                 disabled={saving}
                 className="jp-jupysql-button jp-jupysql-button-secondary"
               >
                 Switch to this
               </button>
             )}
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={saving || !aliasChanged}
-              className="jp-jupysql-button"
-            >
-              {saving ? 'Saving…' : 'Save alias'}
-            </button>
+            {!confirmDelete && (
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving || !changed}
+                className="jp-jupysql-button"
+              >
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -443,13 +507,27 @@ const DatabaseBrowserPanel: React.FC<IDatabaseBrowserPanelProps> = ({ app }) => 
     }
   };
 
-  /** Update alias by re-running %sql with the new alias */
-  const handleSaveAlias = async (connection: IConnection, newAlias: string) => {
-    await api.addConnection(connection.url, newAlias || undefined);
+  /** Save URL and/or alias changes for an existing connection. */
+  const handleSave = async (connection: IConnection, newUrl: string, newAlias: string) => {
+    if (newUrl !== connection.url) {
+      // URL changed: delete old connection, then create the new one
+      await api.deleteConnection(connection.key);
+    }
+    await api.addConnection(newUrl, newAlias || undefined);
     await loadConnections();
     app.commands.execute('apputils:notify', {
-      message: `Alias updated for ${newAlias || connection.url}`,
+      message: `Connection updated: ${newAlias || newUrl}`,
       type: 'success',
+    });
+  };
+
+  /** Remove a connection from all kernels. */
+  const handleDeleteConnection = async (connection: IConnection) => {
+    await api.deleteConnection(connection.key);
+    await loadConnections();
+    app.commands.execute('apputils:notify', {
+      message: `Removed connection: ${connection.alias || connection.url}`,
+      type: 'info',
     });
   };
 
@@ -516,7 +594,13 @@ const DatabaseBrowserPanel: React.FC<IDatabaseBrowserPanelProps> = ({ app }) => 
 
     if (node.type === 'connection') {
       const conn = connectionsRef.current.find(c => c.key === node.metadata?.key);
-      items.push({ label: 'Edit connection…', action: () => { if (conn) setDetailConn(conn); } });
+      items.push(
+        { label: 'Edit connection…', action: () => { if (conn) setDetailConn(conn); } },
+        { divider: true },
+        { label: 'Delete connection', action: async () => {
+          if (conn) await handleDeleteConnection(conn);
+        }},
+      );
 
     } else if (node.type === 'table') {
       const { table = '', schema = '', connectionKey = '' } = node.metadata ?? {};
@@ -605,7 +689,7 @@ const DatabaseBrowserPanel: React.FC<IDatabaseBrowserPanelProps> = ({ app }) => 
     });
 
     menu.open(event.clientX, event.clientY);
-  }, [app, ensureConnectionActive, insertIntoNotebook]);
+  }, [app, ensureConnectionActive, insertIntoNotebook, handleDeleteConnection]);
 
   /** Submit the add-connection dialog */
   const handleConnect = async (connectionString: string, alias: string) => {
@@ -660,10 +744,9 @@ const DatabaseBrowserPanel: React.FC<IDatabaseBrowserPanelProps> = ({ app }) => 
         <ConnectionDetailsPanel
           connection={detailConn}
           onClose={() => setDetailConn(null)}
-          onSwitch={key => {
-            handleConnectionSwitch(key);
-          }}
-          onSaveAlias={handleSaveAlias}
+          onSwitch={key => { handleConnectionSwitch(key); }}
+          onSave={handleSave}
+          onDelete={handleDeleteConnection}
         />
       )}
 

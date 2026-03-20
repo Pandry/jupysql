@@ -483,9 +483,33 @@
 }
 
 .jp-jupysql-button:disabled,
-.jp-jupysql-button-secondary:disabled {
+.jp-jupysql-button-secondary:disabled,
+.jp-jupysql-button-danger:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+/* Danger (destructive) button variant */
+.jp-jupysql-button-danger {
+  background: var(--jp-error-color1, #d32f2f);
+  border: none;
+  border-radius: 3px;
+  color: #fff;
+  cursor: pointer;
+  font-size: var(--jp-ui-font-size1);
+  padding: 6px 12px;
+  transition: opacity 0.2s;
+}
+
+.jp-jupysql-button-danger:hover {
+  opacity: 0.85;
+}
+
+/* Delete confirm prompt */
+.jp-jupysql-delete-confirm {
+  color: var(--jp-error-color1);
+  font-size: var(--jp-ui-font-size0);
+  margin: 0;
 }
 
 /* Read-only input */

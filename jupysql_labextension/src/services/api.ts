@@ -100,6 +100,23 @@ export class JupySQLAPI {
   }
 
   /**
+   * Make a DELETE request to the API
+   */
+  private async delete<T>(endpoint: string, body: any): Promise<T> {
+    const url = URLExt.join(this.baseUrl, endpoint);
+    const response = await ServerConnection.makeRequest(
+      url,
+      { method: 'DELETE', body: JSON.stringify(body) },
+      this.serverSettings
+    );
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.error || `API request failed: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  /**
    * Make a POST request to the API
    */
   private async post<T>(endpoint: string, body: any): Promise<T> {
@@ -218,6 +235,15 @@ export class JupySQLAPI {
     }
 
     return this.get<ITablePreview>('preview', params);
+  }
+
+  /**
+   * Delete (close and remove) a connection in all running kernels.
+   */
+  async deleteConnection(connectionKey: string): Promise<{ status: string }> {
+    return this.delete<{ status: string }>('connections', {
+      connection_key: connectionKey,
+    });
   }
 
   /**

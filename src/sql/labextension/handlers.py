@@ -220,6 +220,59 @@ except Exception as e:
             self.set_status(500)
             self.write_json({"error": str(e)})
 
+    async def delete(self):
+        """DELETE /jupysql/connections — close and remove a connection in all kernels."""
+        try:
+            data = json.loads(self.request.body.decode("utf-8"))
+            connection_key = data.get("connection_key")
+            if not connection_key:
+                self.set_status(400)
+                self.write_json({"error": "connection_key is required"})
+                return
+
+            ck_repr = repr(connection_key)
+            code = f"""\
+import json
+try:
+    from sql.connection import ConnectionManager
+    _conn = ConnectionManager.connections.get({ck_repr})
+    if _conn is None:
+        print(json.dumps({{"status": "not_found"}}))
+    else:
+        try:
+            if hasattr(_conn, 'session') and _conn.session:
+                _conn.session.close()
+        except Exception:
+            pass
+        try:
+            if hasattr(_conn, '_engine') and _conn._engine:
+                _conn._engine.dispose()
+        except Exception:
+            pass
+        del ConnectionManager.connections[{ck_repr}]
+        if ConnectionManager.current is _conn:
+            _rem = list(ConnectionManager.connections.values())
+            ConnectionManager.current = _rem[0] if _rem else None
+        print(json.dumps({{"status": "success"}}))
+except Exception as _e:
+    print(json.dumps({{"error": str(_e)}}))
+"""
+            km = self.settings['kernel_manager']
+            kernel_ids = list(km.list_kernel_ids())
+            success_count = 0
+            for kernel_id in kernel_ids:
+                result = await self.execute_in_kernel(code, kernel_id)
+                if result:
+                    parsed = self._parse_kernel_result(result)
+                    if parsed and parsed.get("status") in ("success", "not_found"):
+                        success_count += 1
+
+            self.write_json({"status": "success"})
+        except Exception as e:
+            self.log.error(f"Error deleting connection: {e}")
+            self.set_status(500)
+            self.write_json({"error": str(e)})
+
     async def post(self):
         try:
             data = json.loads(self.request.body.decode("utf-8"))
