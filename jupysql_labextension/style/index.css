@@ -569,6 +569,39 @@
   font-weight: 600;
 }
 
+/* -------------------------------------------------------------------------
+ * Right-click context menu
+ * ---------------------------------------------------------------------- */
+
+.jp-jupysql-context-menu {
+  background: var(--jp-layout-color1);
+  border: 1px solid var(--jp-border-color1);
+  border-radius: 4px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  min-width: 190px;
+  padding: 4px 0;
+  user-select: none;
+}
+
+.jp-jupysql-context-menu-item {
+  padding: 6px 14px;
+  font-size: var(--jp-ui-font-size1);
+  color: var(--jp-ui-font-color1);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.jp-jupysql-context-menu-item:hover {
+  background: var(--jp-brand-color1);
+  color: var(--jp-ui-inverse-font-color1);
+}
+
+.jp-jupysql-context-menu-divider {
+  height: 1px;
+  background: var(--jp-border-color2);
+  margin: 4px 8px;
+}
+
 /* Scrollbar styling (webkit browsers) */
 .jp-jupysql-browser-content::-webkit-scrollbar {
   width: 8px;

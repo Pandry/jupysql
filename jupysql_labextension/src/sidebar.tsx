@@ -44,6 +44,65 @@ const DbTypePreview: React.FC<{ url: string }> = ({ url }) => {
 };
 
 // ---------------------------------------------------------------------------
+// Context menu
+// ---------------------------------------------------------------------------
+interface IContextMenuItem {
+  label?: string;
+  action?: () => void;
+  divider?: boolean;
+}
+
+const ContextMenu: React.FC<{
+  x: number;
+  y: number;
+  items: IContextMenuItem[];
+  onClose: () => void;
+}> = ({ x, y, items, onClose }) => {
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    };
+    const keyHandler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('mousedown', handler);
+    document.addEventListener('keydown', keyHandler);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      document.removeEventListener('keydown', keyHandler);
+    };
+  }, [onClose]);
+
+  const style: React.CSSProperties = {
+    position: 'fixed',
+    left: Math.min(x, window.innerWidth - 210),
+    top: Math.min(y, window.innerHeight - items.length * 30 - 16),
+    zIndex: 9999,
+  };
+
+  return (
+    <div ref={menuRef} className="jp-jupysql-context-menu" style={style}>
+      {items.map((item, i) =>
+        item.divider ? (
+          <div key={i} className="jp-jupysql-context-menu-divider" />
+        ) : (
+          <div
+            key={i}
+            className="jp-jupysql-context-menu-item"
+            onMouseDown={e => e.stopPropagation()}
+            onClick={() => { item.action?.(); onClose(); }}
+          >
+            {item.label}
+          </div>
+        )
+      )}
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
 // "Add connection" dialog
 // ---------------------------------------------------------------------------
 interface IAddConnectionDialogProps {
@@ -341,6 +400,9 @@ const DatabaseBrowserPanel: React.FC<IDatabaseBrowserPanelProps> = ({ app }) => 
   const [selectedConnection, setSelectedConnection] = useState<string | null>(null);
   const [showDialog, setShowDialog] = useState<boolean>(false);
   const [detailConn, setDetailConn] = useState<IConnection | null>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    x: number; y: number; items: IContextMenuItem[];
+  } | null>(null);
   const api = getAPI();
 
   // Keep refs in sync so async callbacks always see the latest values
@@ -440,6 +502,128 @@ const DatabaseBrowserPanel: React.FC<IDatabaseBrowserPanelProps> = ({ app }) => 
     });
   };
 
+  // ---------------------------------------------------------------------------
+  // Cell insertion helpers
+  // ---------------------------------------------------------------------------
+
+  /** Ensure connection `key` is the active one; switch if needed. */
+  const ensureConnectionActive = useCallback(async (key: string): Promise<void> => {
+    const conn = connectionsRef.current.find(c => c.key === key);
+    if (!conn || conn.is_current) return;
+    const result = await api.switchConnection(key, conn.url, conn.alias ?? undefined);
+    if (result.status === 'success') {
+      setSelectedConnection(key);
+      await loadConnections();
+    }
+  }, [api, loadConnections]);
+
+  /** Helper to qualify a table name with its schema. */
+  const tableRef = (schema: string, table: string): string =>
+    schema && schema !== '(default)' ? `${schema}.${table}` : table;
+
+  /**
+   * Find the first open notebook panel and insert `codes` as new code cells,
+   * one after another, below the currently active cell.
+   */
+  const insertIntoNotebook = useCallback(async (codes: string[]): Promise<void> => {
+    let nbPanel: any = null;
+    for (const w of app.shell.widgets('main')) {
+      if ((w as any).content?.model?.cells !== undefined) {
+        nbPanel = w;
+        break;
+      }
+    }
+
+    if (!nbPanel) {
+      app.commands.execute('apputils:notify', {
+        message: 'Open a notebook first to insert the query',
+        type: 'warning',
+      });
+      return;
+    }
+
+    // Activate the notebook so commands target it, then wait one frame
+    app.shell.activateById(nbPanel.id);
+    await new Promise(r => requestAnimationFrame(r));
+
+    for (const code of codes) {
+      await app.commands.execute('notebook:insert-cell-below');
+      const cell = nbPanel.content?.activeCell;
+      cell?.model?.sharedModel?.setSource(code);
+    }
+  }, [app]);
+
+  /** Build and show a context menu for the given tree node. */
+  const handleNodeContextMenu = useCallback((node: any, event: React.MouseEvent) => {
+    event.preventDefault();
+    const items: IContextMenuItem[] = [];
+
+    if (node.type === 'connection') {
+      const conn = connectionsRef.current.find(c => c.key === node.metadata?.key);
+      items.push({ label: 'Edit connection…', action: () => { if (conn) setDetailConn(conn); } });
+
+    } else if (node.type === 'table') {
+      const { table = '', schema = '', connectionKey = '' } = node.metadata ?? {};
+      const tref = tableRef(schema, table);
+      const insertQuery = async (sql: string) => {
+        await ensureConnectionActive(connectionKey);
+        await insertIntoNotebook([sql]);
+      };
+      items.push(
+        { label: 'Preview: first 10 rows',  action: () => insertQuery(`%%sql\nSELECT * FROM ${tref} LIMIT 10`) },
+        { label: 'Preview: first 100 rows', action: () => insertQuery(`%%sql\nSELECT * FROM ${tref} LIMIT 100`) },
+        { label: 'Row count',               action: () => insertQuery(`%%sql\nSELECT COUNT(*) FROM ${tref}`) },
+      );
+
+    } else if (node.type === 'column') {
+      const { column = '', columnType = '', table = '', schema = '', connectionKey = '' } = node.metadata ?? {};
+      const tref = tableRef(schema, table);
+      const isNumeric = /INT|FLOAT|DOUBLE|REAL|NUMERIC|DECIMAL|NUMBER|BIGINT|SMALLINT|TINYINT/.test(
+        columnType.toUpperCase()
+      );
+
+      const insertChart = async () => {
+        await ensureConnectionActive(connectionKey);
+        if (isNumeric) {
+          await insertIntoNotebook([
+            `%%sql _result <<\nSELECT ${column}\nFROM ${tref}\nWHERE ${column} IS NOT NULL\nLIMIT 10000`,
+            `import matplotlib.pyplot as plt\n_result.DataFrame()['${column}'].plot.hist(\n    bins=20, figsize=(10, 5), title='${column} distribution')\nplt.tight_layout(); plt.show()`,
+          ]);
+        } else {
+          await insertIntoNotebook([
+            `%%sql _result <<\nSELECT ${column}, COUNT(*) AS n\nFROM ${tref}\nGROUP BY ${column}\nORDER BY n DESC\nLIMIT 20`,
+            `import matplotlib.pyplot as plt\n_df = _result.DataFrame()\n_df.plot.barh(\n    x='${column}', y='n',\n    figsize=(10, max(4, len(_df) * 0.4)),\n    title='${column} value counts', legend=False)\nplt.tight_layout(); plt.show()`,
+          ]);
+        }
+      };
+
+      items.push(
+        { label: 'Value counts', action: async () => {
+          await ensureConnectionActive(connectionKey);
+          await insertIntoNotebook([
+            `%%sql\nSELECT ${column}, COUNT(*) AS n\nFROM ${tref}\nGROUP BY ${column}\nORDER BY n DESC\nLIMIT 20`,
+          ]);
+        }},
+        { label: isNumeric ? 'Histogram chart' : 'Bar chart (value counts)', action: insertChart },
+        { divider: true },
+        { label: 'Null count', action: async () => {
+          await ensureConnectionActive(connectionKey);
+          await insertIntoNotebook([
+            `%%sql\nSELECT COUNT(*) - COUNT(${column}) AS nulls,\n       COUNT(*) AS total\nFROM ${tref}`,
+          ]);
+        }},
+        { label: 'Distinct values', action: async () => {
+          await ensureConnectionActive(connectionKey);
+          await insertIntoNotebook([`%%sql\nSELECT DISTINCT ${column}\nFROM ${tref}\nLIMIT 20`]);
+        }},
+      );
+    }
+
+    if (items.length > 0) {
+      setContextMenu({ x: event.clientX, y: event.clientY, items });
+    }
+  }, [ensureConnectionActive, insertIntoNotebook]);
+
   /** Submit the add-connection dialog */
   const handleConnect = async (connectionString: string, alias: string) => {
     await api.addConnection(connectionString, alias || undefined);
@@ -458,8 +642,6 @@ const DatabaseBrowserPanel: React.FC<IDatabaseBrowserPanelProps> = ({ app }) => 
       if (conn) setDetailConn(conn);
     }
   };
-
-  const handleNodeContextMenu = (_node: any, _event: React.MouseEvent) => {};
 
   if (loading) {
     return (
@@ -499,6 +681,16 @@ const DatabaseBrowserPanel: React.FC<IDatabaseBrowserPanelProps> = ({ app }) => 
             handleConnectionSwitch(key);
           }}
           onSaveAlias={handleSaveAlias}
+        />
+      )}
+
+      {/* Right-click context menu */}
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          items={contextMenu.items}
+          onClose={() => setContextMenu(null)}
         />
       )}
 
