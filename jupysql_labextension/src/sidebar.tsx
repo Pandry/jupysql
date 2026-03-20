@@ -10,7 +10,13 @@ import { Menu } from '@lumino/widgets';
 import { DatabaseTree, getDbIcon, getDbTypeName } from './components/DatabaseTree';
 import { getAPI, IConnection } from './services/api';
 
-// Counter for unique temporary command IDs
+// Counter for unique temporary Lumino command IDs.
+//
+// Lumino context menus work by registering a temporary command with the app's
+// CommandRegistry and then referencing that command's ID in the menu.  We
+// append an ever-increasing number to ensure each menu item gets a unique ID,
+// since registering the same ID twice throws an error.  The temporary commands
+// are disposed as soon as the menu closes (see the `aboutToClose` handler below).
 let _ctxCmdCounter = 0;
 
 // ---------------------------------------------------------------------------
@@ -456,9 +462,13 @@ const DatabaseBrowserPanel: React.FC<IDatabaseBrowserPanelProps> = ({ app }) => 
   }, []);
 
   /**
-   * Re-apply the selected connection whenever the active tab changes.
-   * This ensures freshly opened notebooks get the connection applied to
-   * their kernel without the user having to run %sql manually.
+   * Re-apply the selected connection whenever the active JupyterLab tab changes.
+   *
+   * Why: Each notebook runs in its own kernel.  A freshly-opened notebook has no
+   * connections until the user runs ``%sql <url>``.  By listening to the shell's
+   * ``currentChanged`` signal we automatically push the currently-selected
+   * connection into any new kernel the moment the user switches to that tab,
+   * so they can run ``%%sql`` queries immediately without any setup.
    */
   useEffect(() => {
     const labShell = app.shell as any;
@@ -546,13 +556,28 @@ const DatabaseBrowserPanel: React.FC<IDatabaseBrowserPanelProps> = ({ app }) => 
     }
   }, [api, loadConnections]);
 
-  /** Helper to qualify a table name with its schema. */
+  /**
+   * Qualify a table name with its schema when needed.
+   *
+   * SQL queries require the fully-qualified form ``schema.table`` when the
+   * schema is not the connection's default.  The tree uses ``"(default)"`` as
+   * a sentinel value for the default schema (see SchemasHandler in handlers.py),
+   * so we strip it out here.
+   */
   const tableRef = (schema: string, table: string): string =>
     schema && schema !== '(default)' ? `${schema}.${table}` : table;
 
   /**
-   * Find the first open notebook panel and insert `codes` as new code cells,
-   * one after another, below the currently active cell.
+   * Insert *codes* as new code cells into the first open notebook.
+   *
+   * Each string in *codes* becomes one new cell inserted below the currently
+   * active cell, in order.  This is used by context-menu actions on tables and
+   * columns to inject ready-to-run SQL / matplotlib snippets into the notebook.
+   *
+   * The notebook panel is located by checking for the presence of a ``cells``
+   * model on each widget in the main area — the standard JupyterLab shape for
+   * a NotebookPanel.  We activate the panel before inserting so that the
+   * "insert below" command targets the right notebook.
    */
   const insertIntoNotebook = useCallback(async (codes: string[]): Promise<void> => {
     let nbPanel: any = null;
