@@ -13,6 +13,7 @@ import os
 import time
 
 import pytest
+import requests
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
@@ -20,6 +21,18 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 
 JUPYTERLAB_URL = os.environ.get("JUPYTERLAB_URL", "http://localhost:8888")
+
+# PostgreSQL coordinates injected by docker-compose (or env overrides for local runs)
+POSTGRES_HOST = os.environ.get("POSTGRES_TEST_HOST", "localhost")
+POSTGRES_PORT = os.environ.get("POSTGRES_TEST_PORT", "5432")
+POSTGRES_USER = os.environ.get("POSTGRES_TEST_USER", "postgres")
+POSTGRES_PASSWORD = os.environ.get("POSTGRES_TEST_PASSWORD", "postgres")
+POSTGRES_DB = os.environ.get("POSTGRES_TEST_DB", "testdb")
+
+POSTGRES_URL = (
+    f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}"
+    f"@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
+)
 
 
 def wait_for_jupyterlab(driver, timeout=60):
@@ -36,6 +49,24 @@ def wait_for_jupyterlab(driver, timeout=60):
 @pytest.fixture(scope="session")
 def jupyterlab_url():
     return JUPYTERLAB_URL
+
+
+@pytest.fixture(scope="module")
+def running_kernel():
+    """Start a Jupyter kernel, yield its ID, then shut it down.
+
+    Tests that need to execute code in a kernel (connection error tests)
+    use this fixture to ensure at least one kernel is available.
+    """
+    resp = requests.post(f"{JUPYTERLAB_URL}/api/kernels", json={}, timeout=15)
+    assert resp.status_code == 201, (
+        f"Failed to start kernel: {resp.status_code} {resp.text}"
+    )
+    kernel_id = resp.json()["id"]
+    # Brief warm-up so the kernel is ready to execute code
+    time.sleep(2)
+    yield kernel_id
+    requests.delete(f"{JUPYTERLAB_URL}/api/kernels/{kernel_id}", timeout=5)
 
 
 @pytest.fixture(scope="session")

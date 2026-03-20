@@ -131,7 +131,16 @@ export class JupySQLAPI {
   }
 
   /**
-   * Add a new database connection
+   * Ensure the JupySQL (%sql) magic extension is loaded in all running kernels.
+   * Called automatically when the sidebar panel mounts so that users don't need
+   * to run %load_ext sql manually before browsing connections.
+   */
+  async initExtension(): Promise<{ status: string; note?: string }> {
+    return this.post<{ status: string; note?: string }>('init', {});
+  }
+
+  /**
+   * Add a new database connection by executing %sql in the kernel.
    */
   async addConnection(connectionString: string, alias?: string): Promise<IConnectionResponse> {
     return this.post<IConnectionResponse>('connections', {
@@ -212,11 +221,19 @@ export class JupySQLAPI {
   }
 
   /**
-   * Switch to a different database connection
+   * Switch to a different database connection.
+   * Pass url and alias so the handler can re-establish the connection in
+   * kernels that don't have it yet (e.g. freshly opened notebooks).
    */
-  async switchConnection(connectionKey: string): Promise<IConnectionResponse> {
+  async switchConnection(
+    connectionKey: string,
+    url?: string,
+    alias?: string
+  ): Promise<IConnectionResponse> {
     return this.post<IConnectionResponse>('switch', {
       connection_key: connectionKey,
+      url: url ?? '',
+      alias: alias ?? '',
     });
   }
 }

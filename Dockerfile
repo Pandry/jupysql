@@ -18,15 +18,15 @@ COPY package.json setup.py setup.cfg pyproject.toml MANIFEST.in README.md ./
 COPY jupysql_labextension/package.json jupysql_labextension/
 COPY jupysql_labextension/tsconfig.json jupysql_labextension/
 
+# Install Python dependencies (provides jupyter labextension build command)
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir 'jupyterlab>=4.0.0,<5'
+
 # Copy source code
 COPY src/ src/
 COPY jupysql_labextension/src/ jupysql_labextension/src/
 COPY jupysql_labextension/style/ jupysql_labextension/style/
 COPY jupyter-config/ jupyter-config/
-
-# Install Python dependencies (provides jupyter labextension build command)
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir 'jupyterlab>=4.0.0,<5'
 
 # Build the JupyterLab extension
 WORKDIR /build/jupysql_labextension
@@ -54,7 +54,8 @@ COPY --from=builder /build/ /app/
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir 'jupyterlab>=4.0.0,<5'
 
-RUN pip install -e .
+RUN pip install -e . && \
+    pip install --no-cache-dir psycopg2-binary duckdb-engine
 
 # pip install -e does not reliably copy data_files for editable installs in
 # modern pip (PEP 660).  Copy both artefacts explicitly.
@@ -83,4 +84,4 @@ EXPOSE 8888
 ENV JUPYTER_ENABLE_LAB=yes
 
 # Run JupyterLab
-CMD ["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root", "--NotebookApp.token=''", "--NotebookApp.password=''"]
+CMD ["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root", "--ServerApp.token=''", "--ServerApp.password=''", "--ServerApp.disable_check_xsrf=True"]

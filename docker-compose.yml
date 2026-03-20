@@ -9,7 +9,6 @@ services:
     ports:
       - "8888:8888"
     volumes:
-      # Mount a local directory for notebooks
       - ./notebooks:/workspace
     environment:
       - JUPYTER_ENABLE_LAB=yes
@@ -19,8 +18,9 @@ services:
       --port=8888
       --no-browser
       --allow-root
-      --NotebookApp.token=''
-      --NotebookApp.password=''
+      --ServerApp.token=''
+      --ServerApp.password=''
+      --ServerApp.disable_check_xsrf=True
     healthcheck:
       test: ["CMD", "python3", "-c",
              "import urllib.request; urllib.request.urlopen('http://localhost:8888/jupysql/connections', timeout=3)"]
@@ -30,32 +30,22 @@ services:
       start_period: 20s
     restart: unless-stopped
 
-  # Development version with live source mounts
-  jupysql-dev:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: jupysql-lab-dev
-    ports:
-      - "8889:8888"
-    volumes:
-      - ./notebooks:/workspace
-      - ./src:/app/src
-      - ./jupysql_labextension/src:/app/jupysql_labextension/src
+  # PostgreSQL instance used by the test suite
+  postgres-test:
+    image: docker.io/library/postgres:16-alpine
+    container_name: jupysql-postgres-test
     environment:
-      - JUPYTER_ENABLE_LAB=yes
-    command: >
-      jupyter lab
-      --ip=0.0.0.0
-      --port=8888
-      --no-browser
-      --allow-root
-      --watch
-      --NotebookApp.token=''
-      --NotebookApp.password=''
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: testdb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
     restart: unless-stopped
 
-  # Selenium test runner - runs against the jupysql service
+  # Selenium + HTTP test runner
   selenium-tests:
     build:
       context: .
@@ -64,6 +54,13 @@ services:
     depends_on:
       jupysql:
         condition: service_healthy
+      postgres-test:
+        condition: service_healthy
     environment:
       - JUPYTERLAB_URL=http://jupysql:8888
+      - POSTGRES_TEST_HOST=postgres-test
+      - POSTGRES_TEST_PORT=5432
+      - POSTGRES_TEST_USER=postgres
+      - POSTGRES_TEST_PASSWORD=postgres
+      - POSTGRES_TEST_DB=testdb
     restart: "no"
