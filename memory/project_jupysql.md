@@ -1,60 +1,47 @@
 ---
-name: JupySQL project context
-description: JupySQL JupyterLab extension — architecture, fixed bugs, known patterns
+name: JupySQL Extension Architecture
+description: Architecture, components, and customization context for the JupySQL JupyterLab extension fork
 type: project
 ---
 
-## Architecture
+## What this project is
 
-- Python backend: `src/sql/labextension/handlers.py` — REST API handlers (Tornado) mounted at `/jupysql/*`
-- TypeScript frontend: `jupysql_labextension/src/` — React sidebar widget
-  - `index.ts` — JupyterLab plugin registration
-  - `sidebar.tsx` — main panel (DatabaseBrowserPanel) + AddConnectionDialog
-  - `components/DatabaseTree.tsx` — hierarchical tree: connections → schemas → tables → columns
-  - `services/api.ts` — typed API client (singleton via `getAPI()`)
-  - `style/index.css` — all styles
+A fork/customization of [JupySQL](https://github.com/ploomber/jupysql) that adds a polished JupyterLab sidebar database browser. The Python core (magic system, connection management, etc.) is largely upstream JupySQL; the custom work lives in:
 
-## Key patterns
+- `src/sql/labextension/` — Jupyter server extension (REST API)
+- `jupysql_labextension/src/` — TypeScript/React JupyterLab frontend
 
-- `execute_in_kernel(code, kernel_id?)` — runs Python in a kernel, captures stdout
-- `_parse_kernel_result(result)` — extracts the LAST valid JSON from kernel stdout (handles jupysql info lines before our `print(json.dumps(...))`)
-- `_LOAD_EXT_SILENT` — silently loads `%sql` magic before kernel code to avoid "already loaded" noise
-- All React state reads inside async callbacks use `useRef` to avoid stale closures
+## Key architectural decision: kernel-execution model
 
-## Bugs fixed (2026-03-20)
+All SQL state (connections, current connection) lives **inside the IPython kernel process**, not in the Jupyter server. Every REST endpoint must execute Python code snippets in the kernel via the Jupyter messaging protocol and parse the JSON output from stdout.
 
-### Switch not applying to correct kernel
-- **Root cause**: `execute_in_kernel(code)` with no kernel_id always picked `kernel_ids[0]`, not necessarily the user's active notebook kernel
-- **Fix**: `SwitchConnectionHandler` now iterates ALL running kernels; for each kernel it either sets `ConnectionManager.current` (connection already present) or runs `%sql url [--alias name]` to establish it first
-- **API change**: POST `/jupysql/switch` now also accepts `url` and `alias` in the body; frontend (`api.ts`) passes them via `switchConnection(key, url, alias)`
+## Custom frontend files
 
-### Selected connection not cleared after kernel restart
-- **Root cause**: `loadConnections` only set `selectedConnection` when a `is_current` was found, never cleared it
-- **Fix**: always `setSelectedConnection(current?.key ?? null)` — if no current exists (e.g. after restart), the dropdown resets to "— select —"
+- `index.ts` — plugin entry point, registers sidebar widget and commands
+- `sidebar.tsx` — main panel: connection management dialogs, context menus, notebook cell insertion
+- `components/DatabaseTree.tsx` — hierarchical DB tree (connections → schemas → tables → columns), DB-specific icons
+- `services/api.ts` — REST client, singleton `JupySQLAPI` class
 
-### No auto-switch when opening a new notebook
-- **Fix**: `sidebar.tsx` listens to `app.shell.currentChanged`; when the active tab changes and a connection is selected, re-applies the switch via `api.switchConnection` (which now establishes the connection in new kernels too)
+## Custom backend files
 
-## DB-type icons (2026-03-20)
+- `src/sql/labextension/handlers.py` — all REST handlers (init, connections CRUD, schemas, tables, columns, preview, switch)
+- `src/sql/labextension/app.py` — ExtensionApp registration
+- `src/sql/labextension/__init__.py` — `_jupyter_server_extension_points`
 
-Added in `DatabaseTree.tsx` — coloured cylinder SVGs keyed by URL scheme:
-- DuckDB → yellow (#FFC107)
-- SQLite → blue (#0F7EC1)
-- PostgreSQL → dark blue (#336791)
-- MySQL → orange+blue (#F29111 / #00618A)
-- MSSQL → red (#CC2927)
-- Oracle → red (#F80000)
-- Generic → grey (#616161)
+## REST API surface
 
-Icon has `title={node.label}` wrapper so hovering shows the DB name.
+| Method | URL | Purpose |
+|--------|-----|---------|
+| POST | /jupysql/init | Load %sql magic in all kernels |
+| GET | /jupysql/connections | List all connections across kernels |
+| POST | /jupysql/connections | Add a new connection via %sql magic |
+| DELETE | /jupysql/connections | Close and remove a connection |
+| GET | /jupysql/schemas | List schemas for a connection |
+| GET | /jupysql/tables | List tables in a schema |
+| GET | /jupysql/columns | List columns in a table |
+| GET | /jupysql/preview | Paginated row sample |
+| POST | /jupysql/switch | Switch active connection in all kernels |
 
-## Multiple databases in one notebook
+## Security model
 
-Already supported by jupysql natively:
-```
-%sql --alias conn1      # switch to conn1
-%sql SELECT * FROM t1   # queries conn1
-%sql --alias conn2      # switch to conn2
-%sql SELECT * FROM t2   # queries conn2
-```
-The cell magic `%%sql alias_name` (line 1 of cell) also lets you target a specific connection per-cell without changing the global current.
+XSRF is bypassed in handlers (standard Jupyter extension pattern). Real auth comes from the Jupyter server token, passed in every request by `ServerConnection.makeRequest`. Do NOT disable the server token in production.
