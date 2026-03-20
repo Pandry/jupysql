@@ -6,8 +6,12 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ReactWidget } from '@jupyterlab/apputils';
 import { LabIcon } from '@jupyterlab/ui-components';
 import { JupyterFrontEnd } from '@jupyterlab/application';
+import { Menu } from '@lumino/widgets';
 import { DatabaseTree, getDbIcon, getDbTypeName } from './components/DatabaseTree';
 import { getAPI, IConnection } from './services/api';
+
+// Counter for unique temporary command IDs
+let _ctxCmdCounter = 0;
 
 // ---------------------------------------------------------------------------
 // Sidebar tab icon — a database cylinder that adapts to JupyterLab themes
@@ -44,63 +48,13 @@ const DbTypePreview: React.FC<{ url: string }> = ({ url }) => {
 };
 
 // ---------------------------------------------------------------------------
-// Context menu
+// Context menu items descriptor (used to build a Lumino Menu at runtime)
 // ---------------------------------------------------------------------------
 interface IContextMenuItem {
   label?: string;
   action?: () => void;
   divider?: boolean;
 }
-
-const ContextMenu: React.FC<{
-  x: number;
-  y: number;
-  items: IContextMenuItem[];
-  onClose: () => void;
-}> = ({ x, y, items, onClose }) => {
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        onClose();
-      }
-    };
-    const keyHandler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('mousedown', handler);
-    document.addEventListener('keydown', keyHandler);
-    return () => {
-      document.removeEventListener('mousedown', handler);
-      document.removeEventListener('keydown', keyHandler);
-    };
-  }, [onClose]);
-
-  const style: React.CSSProperties = {
-    position: 'fixed',
-    left: Math.min(x, window.innerWidth - 210),
-    top: Math.min(y, window.innerHeight - items.length * 30 - 16),
-    zIndex: 9999,
-  };
-
-  return (
-    <div ref={menuRef} className="jp-jupysql-context-menu" style={style}>
-      {items.map((item, i) =>
-        item.divider ? (
-          <div key={i} className="jp-jupysql-context-menu-divider" />
-        ) : (
-          <div
-            key={i}
-            className="jp-jupysql-context-menu-item"
-            onMouseDown={e => e.stopPropagation()}
-            onClick={() => { item.action?.(); onClose(); }}
-          >
-            {item.label}
-          </div>
-        )
-      )}
-    </div>
-  );
-};
 
 // ---------------------------------------------------------------------------
 // "Add connection" dialog
@@ -400,9 +354,6 @@ const DatabaseBrowserPanel: React.FC<IDatabaseBrowserPanelProps> = ({ app }) => 
   const [selectedConnection, setSelectedConnection] = useState<string | null>(null);
   const [showDialog, setShowDialog] = useState<boolean>(false);
   const [detailConn, setDetailConn] = useState<IConnection | null>(null);
-  const [contextMenu, setContextMenu] = useState<{
-    x: number; y: number; items: IContextMenuItem[];
-  } | null>(null);
   const api = getAPI();
 
   // Keep refs in sync so async callbacks always see the latest values
@@ -553,9 +504,14 @@ const DatabaseBrowserPanel: React.FC<IDatabaseBrowserPanelProps> = ({ app }) => 
     }
   }, [app]);
 
-  /** Build and show a context menu for the given tree node. */
+  /**
+   * Build and open a native Lumino Menu for the given tree node.
+   * Lumino's Menu handles its own viewport-aware positioning, so it looks and
+   * behaves exactly like every other JupyterLab context menu.
+   */
   const handleNodeContextMenu = useCallback((node: any, event: React.MouseEvent) => {
     event.preventDefault();
+
     const items: IContextMenuItem[] = [];
 
     if (node.type === 'connection') {
@@ -619,10 +575,37 @@ const DatabaseBrowserPanel: React.FC<IDatabaseBrowserPanelProps> = ({ app }) => 
       );
     }
 
-    if (items.length > 0) {
-      setContextMenu({ x: event.clientX, y: event.clientY, items });
+    if (items.length === 0) return;
+
+    // Build a Lumino Menu — positioned and styled by JupyterLab's own system
+    const menu = new Menu({ commands: app.commands });
+    const disposables: Array<{ dispose(): void }> = [];
+
+    for (const item of items) {
+      if (item.divider) {
+        menu.addItem({ type: 'separator' });
+        continue;
+      }
+      const id = `jupysql:ctx-tmp-${_ctxCmdCounter++}`;
+      disposables.push(
+        app.commands.addCommand(id, {
+          label: item.label ?? '',
+          execute: item.action ?? (() => { /* no-op */ }),
+        })
+      );
+      menu.addItem({ command: id });
     }
-  }, [ensureConnectionActive, insertIntoNotebook]);
+
+    menu.aboutToClose.connect(() => {
+      // Clean up temporary commands after the menu closes
+      requestAnimationFrame(() => {
+        menu.dispose();
+        disposables.forEach(d => d.dispose());
+      });
+    });
+
+    menu.open(event.clientX, event.clientY);
+  }, [app, ensureConnectionActive, insertIntoNotebook]);
 
   /** Submit the add-connection dialog */
   const handleConnect = async (connectionString: string, alias: string) => {
@@ -681,16 +664,6 @@ const DatabaseBrowserPanel: React.FC<IDatabaseBrowserPanelProps> = ({ app }) => 
             handleConnectionSwitch(key);
           }}
           onSaveAlias={handleSaveAlias}
-        />
-      )}
-
-      {/* Right-click context menu */}
-      {contextMenu && (
-        <ContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          items={contextMenu.items}
-          onClose={() => setContextMenu(null)}
         />
       )}
 
