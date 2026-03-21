@@ -1,6 +1,12 @@
 # Kubernetes Installation Guide
 
-This guide walks through deploying JupySQL on Kubernetes using the official JupyterHub Helm chart, with Dex OIDC authentication, persistent storage, and automatic CNPG database connection discovery.
+This guide walks through deploying JupySQL on Kubernetes using the official JupyterHub Helm chart, with:
+
+- **Shared JupyterLab instance** - All users share one server (expandable to per-team later)
+- **Real-Time Collaboration (RTC)** - Multiple users edit notebooks together
+- **Multiple kernels** - Each user can run independent computations
+- **Dex OIDC authentication** - Authenticate users via your identity provider
+- **CNPG database discovery** - Auto-discover PostgreSQL clusters with read-only `jupyter` user
 
 ## Prerequisites
 
@@ -8,42 +14,56 @@ This guide walks through deploying JupySQL on Kubernetes using the official Jupy
 - Helm 3.x installed
 - `kubectl` configured for your cluster
 - nginx-ingress controller
-- Dex instance running and accessible
+- Dex instance (or other OIDC provider)
 - (Optional) CloudNativePG operator installed for managed PostgreSQL
 
 ## Architecture Overview
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                     Ingress (nginx)                               │
-│                   jupysql.example.com                             │
-└────────────────────────────┬─────────────────────────────────────┘
-                             │
-┌────────────────────────────▼─────────────────────────────────────┐
-│                        JupyterHub                                 │
-│  ┌────────────┐  ┌────────────┐  ┌────────────────────────────┐  │
-│  │  Hub Pod   │  │ Proxy Pod  │  │       User Pod              │  │
-│  │ (spawner)  │  │ (routing)  │  │  ┌──────────────────────┐  │  │
-│  │            │  │            │  │  │  JupySQL Container   │  │  │
-│  │            │  │            │  │  │  ghcr.io/pandry/     │  │  │
-│  │            │  │            │  │  │  jupysql:master      │  │  │
-│  │            │  │            │  │  └──────────┬───────────┘  │  │
-│  │            │  │            │  │             │ localhost    │  │
-│  │            │  │            │  │  ┌──────────▼───────────┐  │  │
-│  │            │  │            │  │  │  DB Discovery        │  │  │
-│  │            │  │            │  │  │  Sidecar             │  │  │
-│  │            │  │            │  │  │  (adds connections   │  │  │
-│  │            │  │            │  │  │   via JupySQL API)   │  │  │
-│  └────────────┘  └────────────┘  │  └──────────────────────┘  │  │
-│                                   └────────────────────────────┘  │
-└───────────────────────────────────────────────────────────────────┘
-        │                                       │
-        ▼                                       ▼
-┌───────────────┐                    ┌─────────────────────────────┐
-│   Dex OIDC    │                    │  CNPG Clusters              │
-│   (auth)      │                    │  (label: jupysql.io/expose) │
-└───────────────┘                    └─────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                        Ingress (nginx)                               │
+│                     jupysql.example.com                              │
+└──────────────────────────────┬──────────────────────────────────────┘
+                               │
+┌──────────────────────────────▼──────────────────────────────────────┐
+│                          JupyterHub                                  │
+│  ┌────────────┐  ┌────────────┐                                     │
+│  │  Hub Pod   │  │ Proxy Pod  │                                     │
+│  │ (spawner)  │  │ (routing)  │                                     │
+│  └────────────┘  └────────────┘                                     │
+│         │                                                            │
+│         │  Shared collaboration account: "jupyter"                   │
+│         ▼                                                            │
+│  ┌───────────────────────────────────────────────────────────────┐  │
+│  │                    jupyter (shared pod)                        │  │
+│  │                                                                │  │
+│  │  👤 Alice ──┐                                                  │  │
+│  │  👤 Bob ────┼── All authenticated users share this server     │  │
+│  │  👤 Carol ──┘   via role-based access                         │  │
+│  │                                                                │  │
+│  │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐              │  │
+│  │  │ Kernel 1    │ │ Kernel 2    │ │ Kernel 3    │  ...         │  │
+│  │  │ (Alice)     │ │ (Bob)       │ │ (Carol)     │              │  │
+│  │  └─────────────┘ └─────────────┘ └─────────────┘              │  │
+│  │                                                                │  │
+│  │  RTC enabled - real-time collaborative editing                 │  │
+│  │  DB Discovery sidecar - auto-discovers CNPG databases         │  │
+│  └───────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
+         │                                        │
+         ▼                                        ▼
+┌─────────────────┐                    ┌─────────────────────────────┐
+│    Dex OIDC     │                    │  CNPG Clusters              │
+│    (auth)       │                    │  (label: jupysql.io/expose) │
+└─────────────────┘                    └─────────────────────────────┘
 ```
+
+**How it works:**
+1. Single shared **collaboration account** called `jupyter`
+2. All authenticated users are granted **role-based access** to this server
+3. Users log in via Dex, then access the shared `jupyter` server
+4. **RTC enabled** - multiple users edit notebooks together in real-time
+5. Each user can start independent kernels for their own computations
 
 ## Step 1: Add JupyterHub Helm Repository
 
@@ -134,21 +154,61 @@ roleRef:
 kubectl apply -f db-discovery-rbac.yaml
 ```
 
-## Step 5: Configure Dex Client
+## Step 5: Create Shared Team Storage
 
-Add a client configuration to your Dex instance:
+Create a ReadWriteMany PVC that all team pods will share (each team gets a subdirectory):
 
 ```yaml
-# Add to your Dex config
+# team-storage-pvc.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jupysql-team-storage
+  namespace: jupysql
+spec:
+  accessModes:
+    - ReadWriteMany  # Required for shared access
+  storageClassName: <your-rwx-storage-class>  # e.g., nfs, cephfs, longhorn, efs
+  resources:
+    requests:
+      storage: 100Gi  # Shared across all teams
+```
+
+```bash
+kubectl apply -f team-storage-pvc.yaml
+```
+
+**Note:** RWX storage classes vary by environment:
+- **On-prem:** NFS, CephFS, Longhorn (with RWX)
+- **AWS:** EFS (via efs-csi-driver)
+- **GCP:** Filestore (via filestore-csi-driver)
+- **Azure:** Azure Files
+
+## Step 6: Configure Dex Client
+
+Add JupyterHub as a client in your Dex configuration:
+
+```yaml
+# dex-config.yaml
+issuer: https://dex.example.com
+
 staticClients:
 - id: jupyterhub
   name: JupyterHub
   secret: <generate-a-secure-secret>  # openssl rand -hex 32
   redirectURIs:
   - https://jupysql.example.com/hub/oauth_callback
+
+oauth2:
+  skipApprovalScreen: true
+  responseTypes: ["code"]
 ```
 
-## Step 6: Create JupyterHub Values File
+**Note:** Team membership is managed in JupyterHub config (Step 7), not via Dex groups. Users just need to authenticate via Dex - their team assignment is defined in `hub.extraConfig`.
+
+## Step 7: Create JupyterHub Values File
+
+This configuration enables **team-based shared pods** with **real-time collaboration**:
 
 ```yaml
 # jupyterhub-values.yaml
@@ -173,8 +233,65 @@ hub:
         - openid
         - email
         - profile
+        - groups  # Required for team routing
       username_claim: email
+      claim_groups_key: groups  # Extract groups from token
       allow_all: true
+
+  # Shared collaboration setup - all users share one server
+  extraConfig:
+    collaboration: |
+      # Single shared collaboration account for all users
+      collab_user = "jupyter"
+
+      # All authenticated users go into the "users" group
+      c.JupyterHub.load_groups = {
+          "collaborative": {"users": [collab_user]},
+          "users": {"users": []},  # Populated by authenticator
+      }
+
+      # Grant all authenticated users access to the shared server
+      c.JupyterHub.load_roles = [
+          {
+              "name": "collab-access",
+              "scopes": [
+                  f"access:servers!user={collab_user}",   # Connect to server
+                  f"admin:servers!user={collab_user}",    # Start/stop server
+                  "admin-ui",                              # Access admin UI
+                  f"list:users!user={collab_user}",       # See collab user
+              ],
+              "groups": ["users"],
+          },
+      ]
+
+      # Auto-add authenticated users to the "users" group
+      c.Authenticator.allowed_users = set()  # Allow all authenticated
+      c.Authenticator.admin_users = set()
+
+      async def post_auth_hook(authenticator, handler, authentication):
+          username = authentication['name']
+          # Add user to "users" group on login
+          from jupyterhub.orm import Group
+          from jupyterhub.app import JupyterHub
+          app = JupyterHub.instance()
+          group = Group.find(app.db, name="users")
+          if group:
+              user = app.users.get(username)
+              if user and group not in user.groups:
+                  user.groups.append(group)
+                  app.db.commit()
+          return authentication
+
+      c.Authenticator.post_auth_hook = post_auth_hook
+
+      # Enable RTC for the collaboration account
+      def pre_spawn_hook(spawner):
+          group_names = {group.name for group in spawner.user.groups}
+          if "collaborative" in group_names:
+              spawner.log.info(f"Enabling RTC for {spawner.user.name}")
+              spawner.args.append("--LabApp.collaborative=True")
+
+      c.KubeSpawner.pre_spawn_hook = pre_spawn_hook
 
 singleuser:
   # JupySQL image
@@ -186,21 +303,32 @@ singleuser:
   # Use the discovery ServiceAccount
   serviceAccountName: jupysql-db-discovery
 
-  # Resources
-  cpu:
-    limit: 2
-    guarantee: 0.5
-  memory:
-    limit: 4G
-    guarantee: 1G
+  # RTC is enabled via pre_spawn_hook for collaboration accounts
 
-  # Persistent storage for notebooks
+  # Resources (sized for team use - multiple kernels)
+  cpu:
+    limit: 4
+    guarantee: 1
+  memory:
+    limit: 8G
+    guarantee: 2G
+
+  # Shared team storage (RWX for multiple users)
+  # Each team gets a subdirectory via subPath (set in pre_spawn_hook)
   storage:
-    type: dynamic
-    capacity: 10Gi
-    dynamic:
-      storageClass: <your-storage-class>
+    type: static
+    static:
+      pvcName: jupysql-team-storage
+      subPath: '{servername}'  # Team name from spawner
     homeMountPath: /home/jovyan
+
+  # Alternative: dynamic storage per team
+  # storage:
+  #   type: dynamic
+  #   capacity: 50Gi
+  #   dynamic:
+  #     storageClass: <your-rwx-storage-class>
+  #   homeMountPath: /home/jovyan
 
   # DB Discovery sidecar - discovers CNPG clusters and adds them via API
   extraContainers:
@@ -251,10 +379,10 @@ singleuser:
 
                 # Determine which secret to use
                 if [[ "$use_readonly" == "true" ]]; then
-                  # Use read-only user if available
-                  secret_name="${cluster}-ro"
+                  # Use jupyter read-only user if available
+                  secret_name="${cluster}-jupyter"
                   if ! kubectl get secret -n "$ns" "$secret_name" &>/dev/null; then
-                    echo "  Read-only secret not found, falling back to app secret"
+                    echo "  jupyter secret not found, falling back to app secret"
                     secret_name="${cluster}-app"
                   fi
                 else
@@ -343,7 +471,7 @@ scheduling:
     enabled: false
 ```
 
-## Step 7: Install JupyterHub
+## Step 8: Install JupyterHub
 
 ```bash
 helm upgrade --install jupysql jupyterhub/jupyterhub \
@@ -352,7 +480,7 @@ helm upgrade --install jupysql jupyterhub/jupyterhub \
   --version 3.3.7
 ```
 
-## Step 8: Verify Installation
+## Step 9: Verify Installation
 
 ```bash
 # Check pods are running
@@ -366,7 +494,7 @@ kubectl get pods -n jupysql -l component=singleuser-server -o jsonpath='{.items[
 kubectl logs -n jupysql jupyter-<username> -c db-discovery -f
 ```
 
-## Step 9: Configure DNS
+## Step 10: Configure DNS
 
 Point your domain to the Ingress controller:
 
@@ -380,64 +508,62 @@ For production databases, it's recommended to use read-only credentials. CNPG su
 
 ### Create Read-Only User in CNPG
 
+First, create the password secret for the `jupyter` user:
+
+```yaml
+# jupyter-db-secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: jupyter-db-credentials
+  namespace: databases
+type: kubernetes.io/basic-auth
+stringData:
+  username: jupyter
+  password: <generate-secure-password>  # openssl rand -base64 24
+```
+
+Then configure the CNPG cluster with the `jupyter` user declaratively:
+
 ```yaml
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
   name: production-db
+  namespace: databases
   labels:
     jupysql.io/expose: "true"
-    jupysql.io/readonly: "true"  # Use read-only credentials
+    jupysql.io/readonly: "true"  # Tells sidecar to use jupyter-ro secret
 spec:
   instances: 3
 
-  # Enable managed roles
+  # Declaratively managed roles
   managed:
     roles:
-      - name: jupysql_readonly
+      - name: jupyter
         ensure: present
         login: true
         passwordSecret:
-          name: production-db-ro
-        connectionLimit: 10
+          name: jupyter-db-credentials
+        connectionLimit: 20
+        # Read-only: no createdb, no createrole, no superuser (defaults)
 
-  # Grant read-only access via bootstrap SQL
+  # Grant read-only access on init
   bootstrap:
     initdb:
       postInitSQL:
-        - GRANT CONNECT ON DATABASE app TO jupysql_readonly;
-        - GRANT USAGE ON SCHEMA public TO jupysql_readonly;
-        - GRANT SELECT ON ALL TABLES IN SCHEMA public TO jupysql_readonly;
-        - ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO jupysql_readonly;
+        - GRANT CONNECT ON DATABASE app TO jupyter;
+        - GRANT USAGE ON SCHEMA public TO jupyter;
+        - GRANT SELECT ON ALL TABLES IN SCHEMA public TO jupyter;
+        - ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO jupyter;
 ```
 
-Create the password secret:
+CNPG will automatically:
+1. Create the `jupyter` role with the password from the secret
+2. Keep the password in sync if you update the secret
+3. Create a connection secret `production-db-jupyter` with full connection details
 
-```bash
-kubectl create secret generic production-db-ro \
-  --from-literal=username=jupysql_readonly \
-  --from-literal=password=$(openssl rand -base64 24) \
-  -n databases
-```
-
-### Alternative: Create Read-Only Secret Manually
-
-If you can't modify the CNPG cluster, create a read-only secret with the same format:
-
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: production-db-ro
-  namespace: databases
-type: kubernetes.io/basic-auth
-stringData:
-  host: production-db-ro.databases.svc.cluster.local  # Read replica endpoint
-  port: "5432"
-  dbname: app
-  user: readonly_user
-  password: <readonly-password>
-```
+The sidecar looks for `<cluster>-ro` or `<cluster>-jupyter` secrets when `jupysql.io/readonly: "true"` is set.
 
 ## Troubleshooting
 
