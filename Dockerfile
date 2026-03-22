@@ -55,7 +55,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir 'jupyterlab>=4.0.0,<5'
 
 RUN pip install -e . && \
-    pip install --no-cache-dir psycopg2-binary duckdb-engine matplotlib pandas
+    pip install --no-cache-dir psycopg2-binary duckdb-engine matplotlib pandas jupyterhub
 
 # pip install -e does not reliably copy data_files for editable installs in
 # modern pip (PEP 660).  Copy both artefacts explicitly.
