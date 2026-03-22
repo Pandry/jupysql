@@ -52,10 +52,10 @@ COPY --from=builder /build/ /app/
 
 # Install JupySQL with the built extension
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir 'jupyterlab>=4.0.0,<5'
+    pip install --no-cache-dir 'jupyterlab>=4.0.0,<5' 'jupyterhub>=5.0,<6' 'jupyter-collaboration>=3.0,<4'
 
 RUN pip install -e . && \
-    pip install --no-cache-dir psycopg2-binary duckdb-engine matplotlib pandas jupyterhub
+    pip install --no-cache-dir psycopg2-binary duckdb-engine matplotlib pandas
 
 # pip install -e does not reliably copy data_files for editable installs in
 # modern pip (PEP 660).  Copy both artefacts explicitly.
