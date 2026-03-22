@@ -74,8 +74,12 @@ RUN mkdir -p /usr/local/etc/jupyter/jupyter_server_config.d/ && \
 RUN jupyter server extension list && \
     jupyter labextension list
 
-# Create a workspace directory for notebooks
-WORKDIR /workspace
+RUN groupadd -g 100 jupyter && \
+    useradd -m -u 1000 -g 100 -d /home/shared -s /bin/bash jupyter
+
+USER jupyter
+WORKDIR /home/shared
+
 
 # Expose JupyterLab port
 EXPOSE 8888
