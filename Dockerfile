@@ -54,6 +54,12 @@ COPY --from=builder /build/ /app/
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir 'jupyterlab>=4.0.0,<5' 'jupyterhub>=5.0,<6' 'jupyter-collaboration>=3.0,<4'
 
+# Binaries
+RUN apt-get update && apt-get install -y \
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN pip install -e . && \
     # Mandatory DB
     pip install --no-cache-dir psycopg2-binary duckdb-engine matplotlib pandas \
