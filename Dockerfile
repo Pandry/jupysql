@@ -55,7 +55,17 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir 'jupyterlab>=4.0.0,<5' 'jupyterhub>=5.0,<6' 'jupyter-collaboration>=3.0,<4'
 
 RUN pip install -e . && \
-    pip install --no-cache-dir psycopg2-binary duckdb-engine matplotlib pandas
+    # Mandatory DB
+    pip install --no-cache-dir psycopg2-binary duckdb-engine matplotlib pandas \
+    # Chat 
+    jupyterlab-chat \
+    # Git
+    jupyterlab-git \
+    # Renderers
+    jupyterlab-fasta jupyterlab-geojson jupyterlab-katex jupyterlab-mathjax2 jupyterlab-vega3 \
+    # LaTex
+    jupyterlab-latex
+    
 
 # pip install -e does not reliably copy data_files for editable installs in
 # modern pip (PEP 660).  Copy both artefacts explicitly.
