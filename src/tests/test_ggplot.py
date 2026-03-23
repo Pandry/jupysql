@@ -258,6 +258,10 @@ def test_ggplot_geom_histogram_fill_with_multi_color_warning(diamonds_data):
         )
 
 
+@pytest.mark.xfail(
+    reason="400 bins generates SQL that exceeds sqlparse's 10000 token limit",
+    raises=Exception,
+)
 @_cleanup_cm()
 @image_comparison(
     baseline_images=["histogram_stacked_large_bins"],

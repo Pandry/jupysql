@@ -1783,8 +1783,9 @@ drivername = not-a-driver
     with pytest.raises(UsageError) as excinfo:
         ip_empty.run_cell("%sql --section section")
 
-    message = "Could not parse SQLAlchemy URL from string 'not-a-driver://'"
-    assert message in str(excinfo.value)
+    # SQLAlchemy 2.x changed the error message format
+    error_str = str(excinfo.value)
+    assert "Could not parse SQLAlchemy URL" in error_str
 
 
 def test_error_when_using_section_argument_and_alias(ip_empty, tmp_empty):
