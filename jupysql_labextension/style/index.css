@@ -111,9 +111,19 @@
   opacity: 0.6;
 }
 
+/* Kernel selector */
+.jp-jupysql-kernel-selector {
+  padding: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--jp-border-color2);
+  background-color: var(--jp-layout-color1);
+  flex-shrink: 0;
+}
+
 /* Connection selector */
 .jp-jupysql-connection-selector {
   padding: 12px;
+  padding-top: 8px;
   border-bottom: 1px solid var(--jp-border-color1);
   background-color: var(--jp-layout-color1);
   flex-shrink: 0;

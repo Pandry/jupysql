@@ -742,6 +742,61 @@ class PreviewHandler(BaseJupySQLHandler):
             self.write_json({"error": str(e)})
 
 
+class KernelsHandler(BaseJupySQLHandler):
+    """GET /jupysql/kernels — list all running kernels with notebook info.
+
+    Returns a list of kernels with their IDs and associated notebook names.
+    This enables the frontend to show which kernel will be used for operations
+    and to automatically switch to the kernel of the currently active notebook.
+    """
+
+    async def get(self) -> None:
+        try:
+            km = self.settings["kernel_manager"]
+            sm = self.settings.get("session_manager")
+            kernel_ids = list(km.list_kernel_ids())
+            self.log.info(f"Found {len(kernel_ids)} running kernels")
+
+            kernels = []
+
+            # Build a map from kernel_id to session info for notebook names
+            session_map = {}
+            if sm:
+                try:
+                    sessions = await sm.list_sessions()
+                    for sess in sessions:
+                        kid = sess.get("kernel", {}).get("id")
+                        if kid:
+                            session_map[kid] = {
+                                "name": sess.get("name", ""),
+                                "path": sess.get("path", ""),
+                                "type": sess.get("type", ""),
+                            }
+                except Exception as e:
+                    self.log.warning(f"Could not list sessions: {e}")
+
+            for kernel_id in kernel_ids:
+                session_info = session_map.get(kernel_id, {})
+                name = session_info.get("name", "")
+                path = session_info.get("path", "")
+
+                # Use notebook name if available, otherwise fall back to kernel ID
+                display_name = name or f"kernel-{kernel_id[:8]}"
+
+                kernels.append({
+                    "id": kernel_id,
+                    "name": display_name,
+                    "path": path,
+                })
+
+            self.write_json({"kernels": kernels})
+
+        except Exception as e:
+            self.log.error(f"Error getting kernels: {e}")
+            self.set_status(500)
+            self.write_json({"error": str(e)})
+
+
 class SwitchConnectionHandler(BaseJupySQLHandler):
     """POST /jupysql/switch — make a connection the active one in all running kernels.
 
@@ -869,6 +924,7 @@ def setup_handlers(web_app, log):
       GET    /jupysql/columns     — list columns in a table
       GET    /jupysql/preview     — fetch a paginated row sample
       POST   /jupysql/switch      — change the active connection
+      GET    /jupysql/kernels     — list running kernels
     """
     host_pattern = ".*$"
     base_url = web_app.settings["base_url"]
@@ -880,6 +936,7 @@ def setup_handlers(web_app, log):
         (url_path_join(base_url, "jupysql", "columns"),     ColumnsHandler),
         (url_path_join(base_url, "jupysql", "preview"),     PreviewHandler),
         (url_path_join(base_url, "jupysql", "switch"),      SwitchConnectionHandler),
+        (url_path_join(base_url, "jupysql", "kernels"),     KernelsHandler),
     ]
     web_app.add_handlers(host_pattern, handlers)
     log.info(f"JupySQL REST API handlers registered at {base_url}jupysql/*")

@@ -8,7 +8,7 @@ import { LabIcon } from '@jupyterlab/ui-components';
 import { JupyterFrontEnd } from '@jupyterlab/application';
 import { Menu } from '@lumino/widgets';
 import { DatabaseTree, getDbIcon, getDbTypeName } from './components/DatabaseTree';
-import { getAPI, IConnection } from './services/api';
+import { getAPI, IConnection, IKernel } from './services/api';
 
 // Counter for unique temporary Lumino command IDs.
 //
@@ -424,13 +424,17 @@ const DatabaseBrowserPanel: React.FC<IDatabaseBrowserPanelProps> = ({ app }) => 
   const [selectedConnection, setSelectedConnection] = useState<string | null>(null);
   const [showDialog, setShowDialog] = useState<boolean>(false);
   const [detailConn, setDetailConn] = useState<IConnection | null>(null);
+  const [kernels, setKernels] = useState<IKernel[]>([]);
+  const [selectedKernel, setSelectedKernel] = useState<string | null>(null);
   const api = getAPI();
 
   // Keep refs in sync so async callbacks always see the latest values
   const selectedConnectionRef = useRef<string | null>(null);
   const connectionsRef = useRef<IConnection[]>([]);
+  const selectedKernelRef = useRef<string | null>(null);
   selectedConnectionRef.current = selectedConnection;
   connectionsRef.current = connections;
+  selectedKernelRef.current = selectedKernel;
 
   /** Load connections from API and sync selectedConnection with kernel reality. */
   const loadConnections = useCallback(async () => {
@@ -450,6 +454,24 @@ const DatabaseBrowserPanel: React.FC<IDatabaseBrowserPanelProps> = ({ app }) => 
     }
   }, [api]);
 
+  /** Load list of running kernels from API. */
+  const loadKernels = useCallback(async () => {
+    try {
+      const kerns = await api.getKernels();
+      setKernels(kerns);
+      // If no kernel is selected yet, select the first one
+      if (!selectedKernelRef.current && kerns.length > 0) {
+        setSelectedKernel(kerns[0].id);
+      }
+      // If selected kernel no longer exists, clear or select the first available
+      if (selectedKernelRef.current && !kerns.find(k => k.id === selectedKernelRef.current)) {
+        setSelectedKernel(kerns.length > 0 ? kerns[0].id : null);
+      }
+    } catch (err) {
+      console.error('Error loading kernels:', err);
+    }
+  }, [api]);
+
   useEffect(() => {
     (async () => {
       try {
@@ -458,23 +480,46 @@ const DatabaseBrowserPanel: React.FC<IDatabaseBrowserPanelProps> = ({ app }) => 
         // Non-fatal: extension may already be loaded or no kernel running
       }
       await loadConnections();
+      await loadKernels();
     })();
   }, []);
 
   /**
-   * Re-apply the selected connection whenever the active JupyterLab tab changes.
+   * Re-apply the selected connection and detect the active kernel whenever the
+   * active JupyterLab tab changes.
    *
    * Why: Each notebook runs in its own kernel.  A freshly-opened notebook has no
    * connections until the user runs ``%sql <url>``.  By listening to the shell's
    * ``currentChanged`` signal we automatically push the currently-selected
    * connection into any new kernel the moment the user switches to that tab,
    * so they can run ``%%sql`` queries immediately without any setup.
+   *
+   * Additionally, when the user switches to a different notebook, we automatically
+   * update the selected kernel to match that notebook's kernel, so operations in
+   * the databrowser target the correct kernel.
    */
   useEffect(() => {
     const labShell = app.shell as any;
     if (!labShell?.currentChanged) return;
 
     const handleCurrentChanged = async () => {
+      // Detect the kernel of the currently active widget (notebook)
+      const currentWidget = labShell.currentWidget;
+      if (currentWidget) {
+        // NotebookPanel has a sessionContext with kernel info
+        const sessionContext = (currentWidget as any).sessionContext;
+        if (sessionContext?.session?.kernel?.id) {
+          const activeKernelId = sessionContext.session.kernel.id;
+          // Only update if different from current selection
+          if (activeKernelId !== selectedKernelRef.current) {
+            setSelectedKernel(activeKernelId);
+            // Refresh kernel list to ensure it's up to date
+            await loadKernels();
+          }
+        }
+      }
+
+      // Apply the selected connection to the (now active) kernel
       const key = selectedConnectionRef.current;
       if (!key) return;
       const conn = connectionsRef.current.find(c => c.key === key);
@@ -488,7 +533,7 @@ const DatabaseBrowserPanel: React.FC<IDatabaseBrowserPanelProps> = ({ app }) => 
 
     labShell.currentChanged.connect(handleCurrentChanged);
     return () => labShell.currentChanged.disconnect(handleCurrentChanged);
-  }, [api]);
+  }, [api, loadKernels]);
 
   /** Switch active connection */
   const handleConnectionSwitch = async (connectionKey: string) => {
@@ -513,6 +558,19 @@ const DatabaseBrowserPanel: React.FC<IDatabaseBrowserPanelProps> = ({ app }) => 
       app.commands.execute('apputils:notify', {
         message: `Failed to switch connection: ${msg}`,
         type: 'error',
+      });
+    }
+  };
+
+  /** Switch active kernel */
+  const handleKernelSwitch = (kernelId: string) => {
+    if (kernelId === selectedKernel) return;
+    setSelectedKernel(kernelId);
+    const kernel = kernels.find(k => k.id === kernelId);
+    if (kernel) {
+      app.commands.execute('apputils:notify', {
+        message: `Switched to kernel: ${kernel.name}`,
+        type: 'info',
       });
     }
   };
@@ -716,6 +774,11 @@ const DatabaseBrowserPanel: React.FC<IDatabaseBrowserPanelProps> = ({ app }) => 
     menu.open(event.clientX, event.clientY);
   }, [app, ensureConnectionActive, insertIntoNotebook, handleDeleteConnection]);
 
+  /** Refresh both connections and kernels */
+  const handleRefresh = useCallback(async () => {
+    await Promise.all([loadConnections(), loadKernels()]);
+  }, [loadConnections, loadKernels]);
+
   /** Submit the add-connection dialog */
   const handleConnect = async (connectionString: string, alias: string) => {
     await api.addConnection(connectionString, alias || undefined);
@@ -747,7 +810,7 @@ const DatabaseBrowserPanel: React.FC<IDatabaseBrowserPanelProps> = ({ app }) => 
     return (
       <div className="jp-jupysql-browser-error">
         <p className="jp-jupysql-error-message">Error: {error}</p>
-        <button className="jp-jupysql-button" onClick={loadConnections}>
+        <button className="jp-jupysql-button" onClick={handleRefresh}>
           Retry
         </button>
       </div>
@@ -784,7 +847,7 @@ const DatabaseBrowserPanel: React.FC<IDatabaseBrowserPanelProps> = ({ app }) => 
         <div className="jp-jupysql-browser-actions">
           <button
             className="jp-jupysql-icon-button"
-            onClick={loadConnections}
+            onClick={handleRefresh}
             title="Refresh"
           >
             ⟳
@@ -798,6 +861,29 @@ const DatabaseBrowserPanel: React.FC<IDatabaseBrowserPanelProps> = ({ app }) => 
           </button>
         </div>
       </div>
+
+      {/* Kernel selector */}
+      {kernels.length > 0 && (
+        <div className="jp-jupysql-kernel-selector">
+          <label htmlFor="kernel-select" className="jp-jupysql-label">
+            Target kernel
+          </label>
+          <select
+            id="kernel-select"
+            className="jp-jupysql-select"
+            value={selectedKernel || ''}
+            onChange={e => handleKernelSwitch(e.target.value)}
+          >
+            <option value="">— select —</option>
+            {kernels.map(kernel => (
+              <option key={kernel.id} value={kernel.id}>
+                {kernel.name}
+                {kernel.id === selectedKernel ? ' ✓' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Active connection selector */}
       {connections.length > 0 && (

@@ -42,6 +42,15 @@ export interface IColumn {
 }
 
 /**
+ * Kernel information
+ */
+export interface IKernel {
+  id: string;
+  name: string;
+  path: string;
+}
+
+/**
  * Table preview data
  */
 export interface ITablePreview {
@@ -261,6 +270,14 @@ export class JupySQLAPI {
       url: url ?? '',
       alias: alias ?? '',
     });
+  }
+
+  /**
+   * Get list of running kernels
+   */
+  async getKernels(): Promise<IKernel[]> {
+    const response = await this.get<{ kernels: IKernel[] }>('kernels');
+    return response.kernels;
   }
 }
 
