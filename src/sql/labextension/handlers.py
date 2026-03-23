@@ -363,16 +363,29 @@ class ConnectionsHandler(BaseJupySQLHandler):
     """
 
     async def get(self) -> None:
-        """Aggregate connections from every running kernel, deduplicating by key.
+        """List connections, optionally filtered to a specific kernel.
+
+        Query parameters:
+          - ``kernel_id`` (optional): If provided, only query that kernel.
+            Otherwise, aggregate connections from all running kernels.
 
         The same connection may appear in multiple kernels if they share state
-        (e.g. two notebooks that have both run ``%sql duckdb://``).  We
-        deduplicate by the connection key so the UI sees each connection once.
+        (e.g. two notebooks that have both run ``%sql duckdb://``).  When
+        querying all kernels, we deduplicate by the connection key so the UI
+        sees each connection once.
         """
         try:
             km = self.settings["kernel_manager"]
-            kernel_ids = list(km.list_kernel_ids())
-            self.log.info(f"Querying {len(kernel_ids)} kernels for connections")
+            target_kernel_id = self.get_argument("kernel_id", None)
+
+            if target_kernel_id:
+                # Query only the specified kernel
+                kernel_ids = [target_kernel_id]
+                self.log.info(f"Querying specific kernel: {target_kernel_id[:8]}")
+            else:
+                # Query all kernels
+                kernel_ids = list(km.list_kernel_ids())
+                self.log.info(f"Querying {len(kernel_ids)} kernels for connections")
 
             all_connections = []
             seen_keys: set = set()
@@ -495,7 +508,14 @@ except Exception as _e:
     async def post(self) -> None:
         """Add a new connection by running ``%sql <connection_string>`` in the kernel.
 
-        Request body: ``{ "connection_string": "<url>", "alias": "<name>" }``
+        Request body: ``{ "connection_string": "<url>", "alias": "<name>", "all_kernels": bool }``
+
+        Parameters:
+          - ``connection_string`` (required): The database connection URL.
+          - ``alias`` (optional): A friendly name for the connection.
+          - ``all_kernels`` (optional, default false): If true, the connection
+            is established in ALL running kernels. This is useful for scripts
+            that inject credentials into multiple notebooks (e.g., K8s sidecars).
 
         The connection string is passed through ``repr()`` before being
         embedded in the kernel code, which turns it into a safe Python string
@@ -506,6 +526,7 @@ except Exception as _e:
             data = json.loads(self.request.body.decode("utf-8"))
             connection_string = data.get("connection_string")
             alias = data.get("alias") or ""
+            all_kernels = data.get("all_kernels", False)
 
             if not connection_string:
                 self.set_status(400)
@@ -528,6 +549,38 @@ try:
 except Exception as _e:
     print(json.dumps({{"error": str(_e)}}))
 """
+            if all_kernels:
+                # Execute in all running kernels
+                km = self.settings["kernel_manager"]
+                kernel_ids = list(km.list_kernel_ids())
+                self.log.info(f"Adding connection to all {len(kernel_ids)} kernels")
+
+                success_count = 0
+                errors = []
+                for kernel_id in kernel_ids:
+                    result = await self.execute_in_kernel(code, kernel_id)
+                    if result:
+                        resp = self._parse_kernel_result(result)
+                        if resp and resp.get("status") == "success":
+                            success_count += 1
+                        elif resp and "error" in resp:
+                            errors.append(f"{kernel_id[:8]}: {resp['error']}")
+
+                if success_count > 0:
+                    self.write_json({
+                        "status": "success",
+                        "message": f"Connection added to {success_count}/{len(kernel_ids)} kernels",
+                        "errors": errors if errors else None,
+                    })
+                else:
+                    self.set_status(500)
+                    self.write_json({
+                        "error": "Failed to add connection to any kernel",
+                        "details": errors,
+                    })
+                return
+
+            # Default: execute in first available kernel
             result = await self.execute_in_kernel(code)
 
             if result:

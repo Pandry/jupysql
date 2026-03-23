@@ -436,12 +436,14 @@ const DatabaseBrowserPanel: React.FC<IDatabaseBrowserPanelProps> = ({ app }) => 
   connectionsRef.current = connections;
   selectedKernelRef.current = selectedKernel;
 
-  /** Load connections from API and sync selectedConnection with kernel reality. */
+  /** Load connections from API for the selected kernel and sync selectedConnection. */
   const loadConnections = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const conns = await api.getConnections();
+      // If a kernel is selected, load connections for that kernel only
+      // Otherwise, load connections from all kernels (aggregated)
+      const conns = await api.getConnections(selectedKernelRef.current ?? undefined);
       setConnections(conns);
       // Always sync: clear when nothing is active (e.g. after kernel restart)
       const current = conns.find(c => c.is_current);
@@ -513,8 +515,11 @@ const DatabaseBrowserPanel: React.FC<IDatabaseBrowserPanelProps> = ({ app }) => 
           // Only update if different from current selection
           if (activeKernelId !== selectedKernelRef.current) {
             setSelectedKernel(activeKernelId);
-            // Refresh kernel list to ensure it's up to date
+            // Update the ref immediately so loadConnections uses the new kernel
+            selectedKernelRef.current = activeKernelId;
+            // Refresh kernel list and connections for the new kernel
             await loadKernels();
+            await loadConnections();
           }
         }
       }
@@ -562,10 +567,12 @@ const DatabaseBrowserPanel: React.FC<IDatabaseBrowserPanelProps> = ({ app }) => 
     }
   };
 
-  /** Switch active kernel */
-  const handleKernelSwitch = (kernelId: string) => {
+  /** Switch active kernel and reload connections for that kernel */
+  const handleKernelSwitch = async (kernelId: string) => {
     if (kernelId === selectedKernel) return;
     setSelectedKernel(kernelId);
+    // Update the ref immediately so loadConnections uses the new kernel
+    selectedKernelRef.current = kernelId;
     const kernel = kernels.find(k => k.id === kernelId);
     if (kernel) {
       app.commands.execute('apputils:notify', {
@@ -573,6 +580,8 @@ const DatabaseBrowserPanel: React.FC<IDatabaseBrowserPanelProps> = ({ app }) => 
         type: 'info',
       });
     }
+    // Reload connections for the newly selected kernel
+    await loadConnections();
   };
 
   /** Save URL and/or alias changes for an existing connection. */

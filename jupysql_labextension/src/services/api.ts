@@ -149,10 +149,16 @@ export class JupySQLAPI {
   }
 
   /**
-   * Get all database connections
+   * Get database connections, optionally filtered to a specific kernel.
+   * If kernelId is provided, only connections from that kernel are returned.
+   * Otherwise, connections from all kernels are aggregated and deduplicated.
    */
-  async getConnections(): Promise<IConnection[]> {
-    const response = await this.get<{ connections: IConnection[] }>('connections');
+  async getConnections(kernelId?: string): Promise<IConnection[]> {
+    const params: Record<string, string> = {};
+    if (kernelId) {
+      params.kernel_id = kernelId;
+    }
+    const response = await this.get<{ connections: IConnection[] }>('connections', params);
     return response.connections;
   }
 
@@ -167,11 +173,17 @@ export class JupySQLAPI {
 
   /**
    * Add a new database connection by executing %sql in the kernel.
+   * If allKernels is true, the connection is added to ALL running kernels.
    */
-  async addConnection(connectionString: string, alias?: string): Promise<IConnectionResponse> {
+  async addConnection(
+    connectionString: string,
+    alias?: string,
+    allKernels?: boolean
+  ): Promise<IConnectionResponse> {
     return this.post<IConnectionResponse>('connections', {
       connection_string: connectionString,
       alias,
+      all_kernels: allKernels ?? false,
     });
   }
 
