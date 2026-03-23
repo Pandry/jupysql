@@ -64,6 +64,8 @@ RUN apt-get update && apt-get install -y \
 RUN pip install -e . && \
     # Mandatory DB
     pip install --no-cache-dir psycopg2-binary duckdb-engine matplotlib pandas \
+    # Jupytext for declarative notebooks
+    jupytext
     # Chat 
     jupyterlab-chat \
     # Git
