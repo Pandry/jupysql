@@ -65,7 +65,9 @@ RUN pip install -e . && \
     # Mandatory DB
     pip install --no-cache-dir psycopg2-binary duckdb-engine matplotlib pandas \
     # Jupytext for declarative notebooks
-    jupytext
+    jupytext \
+    # ipywidgets
+    ipywidgets \
     # Chat 
     jupyterlab-chat \
     # Git
