@@ -8,11 +8,11 @@ ORIGINAL_ERROR = "\nOriginal error message from DB driver:\n"
 CTE_MSG = (
     "If using snippets, you may pass the --with argument explicitly.\n"
     "For more details please refer: "
-    "https://jupysql.ploomber.io/en/latest/compose.html#with-argument"
+    "https://pandry.github.io/jupysql/compose.html#with-argument"
 )
 POSTGRES_MSG = """\nLooks like you have run into some issues.
                 Review our DB connection via URL strings guide:
-                https://jupysql.ploomber.io/en/latest/connecting.html .
+                https://pandry.github.io/jupysql/connecting.html .
                  Using Ubuntu? Check out this guide: "
                 https://help.ubuntu.com/community/PostgreSQL#fe_sendauth:_
                 no_password_supplied\n"""

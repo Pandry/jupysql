@@ -36,7 +36,7 @@ from sql.warnings import JupySQLQuotedNamedParametersWarning, JupySQLRollbackPer
 from sql import _current
 from sql.connection import error_handling
 
-BASE_DOC_URL = "https://jupysql.ploomber.io/en/latest"
+BASE_DOC_URL = "https://pandry.github.io/jupysql"
 
 
 PLOOMBER_DOCS_LINK_STR = f"{BASE_DOC_URL}/connecting.html"
@@ -835,14 +835,14 @@ class SQLAlchemyConnection(AbstractConnection):
                             "disable it with: "
                             '%config SqlMagic.named_parameters="disabled"\n'
                             "For more info, see the docs: "
-                            "https://jupysql.ploomber.io/en/latest/api/configuration.html#named-parameters"  # noqa
+                            "https://pandry.github.io/jupysql/api/configuration.html#named-parameters"  # noqa
                         )
                 elif parameters == {}:
                     e.add_detail(
                         'The named parameters feature is "disabled". '
                         'Enable it with: %config SqlMagic.named_parameters="enabled".\n'
                         "For more info, see the docs: "
-                        "https://jupysql.ploomber.io/en/latest/api/configuration.html#named-parameters"  # noqa
+                        "https://pandry.github.io/jupysql/api/configuration.html#named-parameters"  # noqa
                     )
                 raise
 

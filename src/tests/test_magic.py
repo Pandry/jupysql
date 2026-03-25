@@ -33,7 +33,7 @@ import psutil
 
 
 DISPLAYLIMIT_LINK = (
-    '<a href="https://jupysql.ploomber.io/en/'
+    '<a href="https://pandry.github.io/jupysql/'
     'latest/api/configuration.html#displaylimit">displaylimit</a>'
 )
 
@@ -1222,7 +1222,7 @@ An error happened while creating the connection: connect(): incompatible functio
 
 invalid_connection_string_duckdb_bottom = f"""
 Perhaps you meant to use the 'duckdb' db 
-To find more information regarding connection: https://jupysql.ploomber.io/en/latest/integrations/duckdb.html
+To find more information regarding connection: https://pandry.github.io/jupysql/integrations/duckdb.html
 
 To fix it:
 
@@ -1573,7 +1573,7 @@ def test_error_suggests_turning_feature_on_if_it_detects_named_params(ip):
         "disable it with: "
         '%config SqlMagic.named_parameters="disabled"\n'
         "For more info, see the docs: "
-        "https://jupysql.ploomber.io/en/latest/api/configuration.html"
+        "https://pandry.github.io/jupysql/api/configuration.html"
     )
     assert suggestion in str(excinfo.value)
 
@@ -2494,7 +2494,7 @@ SELECT * from temp;""",
             "TableNotFoundError",
             """If using snippets, you may pass the --with argument explicitly.
 For more details please refer: \
-https://jupysql.ploomber.io/en/latest/compose.html#with-argument
+https://pandry.github.io/jupysql/compose.html#with-argument
 
 There is no table with name 'snip'.
 Did you mean: 'snippet'
@@ -2514,7 +2514,7 @@ SELECT * from tem;""",
             "RuntimeError",
             """If using snippets, you may pass the --with argument explicitly.
 For more details please refer: \
-https://jupysql.ploomber.io/en/latest/compose.html#with-argument
+https://pandry.github.io/jupysql/compose.html#with-argument
 
 
 Original error message from DB driver:
@@ -2531,7 +2531,7 @@ SELECT * from tem;""",
             "TableNotFoundError",
             """If using snippets, you may pass the --with argument explicitly.
 For more details please refer: \
-https://jupysql.ploomber.io/en/latest/compose.html#with-argument
+https://pandry.github.io/jupysql/compose.html#with-argument
 
 There is no table with name 'snip'.
 Did you mean: 'snippet'
@@ -2551,7 +2551,7 @@ SELECT * from temp;""",
             "RuntimeError",
             """If using snippets, you may pass the --with argument explicitly.
 For more details please refer: \
-https://jupysql.ploomber.io/en/latest/compose.html#with-argument
+https://pandry.github.io/jupysql/compose.html#with-argument
 
 
 Original error message from DB driver:
@@ -2569,7 +2569,7 @@ SELECT * from temp;""",
             "RuntimeError",
             """If using snippets, you may pass the --with argument explicitly.
 For more details please refer: \
-https://jupysql.ploomber.io/en/latest/compose.html#with-argument
+https://pandry.github.io/jupysql/compose.html#with-argument
 
 
 Original error message from DB driver:
@@ -2760,7 +2760,7 @@ def test_disabled_named_parameters_shows_disabled_warning(ip):
         'The named parameters feature is "disabled". '
         'Enable it with: %config SqlMagic.named_parameters="enabled".\n'
         "For more info, see the docs: "
-        "https://jupysql.ploomber.io/en/latest/api/configuration.html"
+        "https://pandry.github.io/jupysql/api/configuration.html"
     )
 
     assert expected_warning in str(excinfo.value)

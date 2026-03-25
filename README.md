@@ -1,7 +1,7 @@
 # JupySQL
 ![CI](https://github.com/ploomber/jupysql/workflows/CI/badge.svg)
 ![CI Integration Tests](https://github.com/ploomber/jupysql/actions/workflows/ci-integration-db.yaml/badge.svg)
-![Broken Links](https://github.com/ploomber/jupysql/workflows/check-for-broken-links/badge.svg)
+![Broken Links](https://github.com/Pandry/jupysql/workflows/check-for-broken-links/badge.svg)
 [![PyPI version](https://badge.fury.io/py/jupysql.svg)](https://badge.fury.io/py/jupysql)
 [![Twitter](https://img.shields.io/twitter/follow/edublancas?label=Follow&style=social)](https://twitter.com/intent/user?screen_name=ploomber)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
@@ -14,7 +14,7 @@
   |
   <a href="mailto:contact@ploomber.io">Contact us</a>
   |
-  <a href="https://jupysql.ploomber.io/">Docs</a>
+  <a href="https://pandry.github.io/jupysql/">Docs</a>
   |
   <a href="https://ploomber.io/blog">Blog</a>
   |
@@ -30,10 +30,10 @@ Run SQL in Jupyter/IPython via a `%sql` and `%%sql` magics.
 
 ## Features
 
-- [Pandas integration](https://jupysql.ploomber.io/en/latest/integrations/pandas.html)
-- [SQL composition (no more hard-to-debug CTEs!)](https://jupysql.ploomber.io/en/latest/compose.html)
-- [Plot massive datasets without blowing up memory](https://jupysql.ploomber.io/en/latest/plot.html)
-- [DuckDB integration](https://jupysql.ploomber.io/en/latest/integrations/duckdb.html)
+- [Pandas integration](https://pandry.github.io/jupysql/integrations/pandas.html)
+- [SQL composition (no more hard-to-debug CTEs!)](https://pandry.github.io/jupysql/compose.html)
+- [Plot massive datasets without blowing up memory](https://pandry.github.io/jupysql/plot.html)
+- [DuckDB integration](https://pandry.github.io/jupysql/integrations/duckdb.html)
 - **JupyterLab Extension** - Database browser sidebar for exploring connections, schemas, tables, and columns
 
 ## Installation
@@ -64,7 +64,7 @@ After making code changes, see [COMPILE.md](COMPILE.md) for compilation instruct
 
 ## Documentation
 
-[Click here to see the documentation.](https://jupysql.ploomber.io)
+[Click here to see the documentation.](https://pandry.github.io/jupysql)
 
 ## Security
 

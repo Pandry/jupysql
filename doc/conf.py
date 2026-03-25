@@ -1,7 +1,7 @@
 from pkgmt.github import get_repo_and_branch_for_readthedocs
 
 repository_url, repository_branch = get_repo_and_branch_for_readthedocs(
-    repository_url="https://github.com/ploomber/jupysql",
+    repository_url="https://github.com/Pandry/jupysql",
     default_branch="master",
 )
 
