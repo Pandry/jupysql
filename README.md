@@ -12,10 +12,13 @@
   <a href="#contributing">Contributing</a>
 </p>
 
-> [!NOTE]
-> **JupySQL is a powerful SQL analysis tool for Jupyter.** This project serves as a modern replacement for [Briefer](https://github.com/briefercloud/briefer) (now closed) for data analysis workflows in Jupyter notebooks.
+> [!WARNING]
+> **This is a personal fork and is NOT actively maintained or guaranteed to be stable.**
+>
+> This project was created primarily to add the JupyterLab database browser extension - something I needed after [Briefer](https://github.com/briefercloud/briefer) closed. I'm sharing it in case others find it useful, but this is not a production-ready or actively developed project. Use at your own risk.
 
-Run SQL in Jupyter/IPython via `%sql` and `%%sql` magics.
+> [!NOTE]
+> Run SQL in Jupyter/IPython via `%sql` and `%%sql` magics. This fork serves as a personal replacement for [Briefer](https://github.com/briefercloud/briefer) for data analysis workflows in Jupyter notebooks.
 
 ## Features
 
@@ -27,27 +30,18 @@ Run SQL in Jupyter/IPython via `%sql` and `%%sql` magics.
 
 ## Installation
 
-### From PyPI (Standard)
+> [!IMPORTANT]
+> This fork is not published to PyPI. Use Git or Docker installation methods below.
 
-```bash
-pip install jupysql
-```
+### From Git
 
-or with conda:
-
-```bash
-conda install jupysql -c conda-forge
-```
-
-### From Git (Latest)
-
-To install the latest development version directly from this repository:
+Install directly from this repository:
 
 ```bash
 pip install git+https://github.com/Pandry/jupysql.git
 ```
 
-### Using Docker (Recommended for Full Experience)
+### Using Docker (Recommended)
 
 The Docker image includes JupySQL with the JupyterLab extension and all optional dependencies:
 
