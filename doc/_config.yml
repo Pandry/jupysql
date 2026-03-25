@@ -1,1 +1,98 @@
-# do not use this, edit conf.py instead
+# Jupyter Book Configuration
+# Learn more at https://jupyterbook.org/customize/config.html
+
+title: JupySQL
+author: Ploomber
+copyright: "2023"
+logo: square-no-bg-small.png
+
+# Force re-execution of notebooks on each build.
+# See https://jupyterbook.org/content/execute.html
+execute:
+  execute_notebooks: cache
+  cache: ""
+  timeout: 90
+  run_in_temp: true
+  allow_errors: false
+  stderr_output: show
+  exclude_patterns:
+    - "integrations/*-connect.ipynb"
+    - "integrations/mssql.ipynb"
+    - "integrations/mysql.ipynb"
+    - "integrations/mariadb.ipynb"
+    - "integrations/clickhouse.ipynb"
+    - "integrations/mindsdb.ipynb"
+    - "integrations/questdb.ipynb"
+    - "integrations/trinodb.ipynb"
+    - "integrations/oracle.ipynb"
+    - "integrations/snowflake.ipynb"
+    - "integrations/redshift.ipynb"
+    - "integrations/spark.ipynb"
+
+# Define the name of the latex output file for PDF builds
+latex:
+  latex_engine: pdflatex
+
+# Add a bibtex file so that we can create citations
+bibtex_bibfiles: []
+
+# Information about where the book exists on the web
+repository:
+  url: https://github.com/Pandry/jupysql
+  path_to_book: doc
+  branch: master
+
+# Add GitHub buttons to your book
+html:
+  use_issues_button: true
+  use_repository_button: true
+  use_edit_page_button: false
+  home_page_in_toc: true
+  analytics:
+    google_analytics_id: G-JBZ8NNQSLN
+
+# Advanced configuration
+sphinx:
+  extra_extensions:
+    - sphinx_togglebutton
+    - sphinx_copybutton
+    - sphinx_design
+    - sphinx.ext.autodoc
+    - sphinx.ext.napoleon
+    - sphinx.ext.autosummary
+    - matplotlib.sphinxext.plot_directive
+  config:
+    numfig: true
+    myst_heading_anchors: 2
+    suppress_warnings:
+      - misc.highlighting_failure
+    plot_html_show_formats: false
+    plot_html_show_source_link: false
+    plot_include_source: true
+    html_static_path:
+      - _static
+    html_css_files:
+      - algolia.css
+      - https://cdn.jsdelivr.net/npm/@docsearch/css@3
+    html_js_files:
+      - ["https://cdn.jsdelivr.net/npm/@docsearch/js@3.3.3/dist/umd/index.js", {"defer": "defer"}]
+      - ["algolia.js", {"defer": "defer"}]
+
+# MyST configuration
+parse:
+  myst_enable_extensions:
+    - colon_fence
+    - dollarmath
+    - linkify
+    - substitution
+    - tasklist
+  myst_url_schemes:
+    - mailto
+    - http
+    - https
+
+exclude_patterns:
+  - "**.ipynb_checkpoints"
+  - ".DS_Store"
+  - "Thumbs.db"
+  - "_build"
