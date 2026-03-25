@@ -7,7 +7,29 @@ on:
       - 'dev/**'
     tags:
       - '[0-9]+.[0-9]+.[0-9]+'
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'setup.py'
+      - 'setup.cfg'
+      - 'pyproject.toml'
+      - 'requirements*.txt'
+      - 'noxfile.py'
+      - 'docker-compose*.yml'
+      - 'Dockerfile'
+      - '.github/workflows/ci.yaml'
   pull_request:
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'setup.py'
+      - 'setup.cfg'
+      - 'pyproject.toml'
+      - 'requirements*.txt'
+      - 'noxfile.py'
+      - 'docker-compose*.yml'
+      - 'Dockerfile'
+      - '.github/workflows/ci.yaml'
 
 jobs:
   selenium-tests:
