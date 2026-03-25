@@ -2,8 +2,8 @@
 # Learn more at https://jupyterbook.org/customize/config.html
 
 title: JupySQL
-author: Ploomber
-copyright: "2023"
+author: Pandry (original work by Ploomber)
+copyright: "2023-2026"
 logo: square-no-bg-small.png
 
 # Force re-execution of notebooks on each build.

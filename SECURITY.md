@@ -3,12 +3,11 @@
 If you've discovered a security vulnerability in this project, please report it responsibly through one of the following official channels:
 
 ### Preferred Method: GitHub Security Advisories
-1. Go to the **Security** tab of this repository
+1. Go to the [Security tab](https://github.com/Pandry/jupysql/security) of this repository
 2. Click **Report a vulnerability**
 3. Fill out the private vulnerability report form
 
-### Alternative: Email
-Send details to: `security@ploomber.io`
+This is the recommended method for reporting security issues as it keeps the information private until a fix is available.
 
 ### What to Include
 - Description of the vulnerability

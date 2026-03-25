@@ -1,32 +1,21 @@
 # JupySQL
-![CI](https://github.com/ploomber/jupysql/workflows/CI/badge.svg)
-![CI Integration Tests](https://github.com/ploomber/jupysql/actions/workflows/ci-integration-db.yaml/badge.svg)
+![CI](https://github.com/Pandry/jupysql/workflows/CI/badge.svg)
+![CI Integration Tests](https://github.com/Pandry/jupysql/actions/workflows/ci-integration-db.yaml/badge.svg)
 ![Broken Links](https://github.com/Pandry/jupysql/workflows/check-for-broken-links/badge.svg)
-[![PyPI version](https://badge.fury.io/py/jupysql.svg)](https://badge.fury.io/py/jupysql)
-[![Twitter](https://img.shields.io/twitter/follow/edublancas?label=Follow&style=social)](https://twitter.com/intent/user?screen_name=ploomber)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![Downloads](https://static.pepy.tech/badge/jupysql/month)](https://pepy.tech/project/jupysql)
 
 <p align="center">
-  <a href="https://ploomber.io/community">Join our community</a>
+  <a href="https://pandry.github.io/jupysql/">Documentation</a>
   |
-  <a href="https://share.hsforms.com/1E7Qa_OpcRPi_MV-segFsaAe6c2g">Newsletter</a>
+  <a href="https://github.com/Pandry/jupysql/issues">Issues</a>
   |
-  <a href="mailto:contact@ploomber.io">Contact us</a>
-  |
-  <a href="https://pandry.github.io/jupysql/">Docs</a>
-  |
-  <a href="https://ploomber.io/blog">Blog</a>
-  |
-  <a href="https://ploomber.io">Website</a>
-  |
-  <a href="https://www.youtube.com/channel/UCaIS5BMlmeNQE4-Gn0xTDXQ">YouTube</a>
+  <a href="#contributing">Contributing</a>
 </p>
 
-> [!TIP]
-> Deploy Streamlit and Dash apps for free on [Ploomber Cloud!](https://www.platform.ploomber.io/register/?utm_medium=github&utm_source=jupysql)
+> [!NOTE]
+> **JupySQL is a powerful SQL analysis tool for Jupyter.** This project serves as a modern replacement for [Briefer](https://github.com/briefercloud/briefer) (now closed) for data analysis workflows in Jupyter notebooks.
 
-Run SQL in Jupyter/IPython via a `%sql` and `%%sql` magics.
+Run SQL in Jupyter/IPython via `%sql` and `%%sql` magics.
 
 ## Features
 
@@ -38,27 +27,44 @@ Run SQL in Jupyter/IPython via a `%sql` and `%%sql` magics.
 
 ## Installation
 
-```
+### From PyPI (Standard)
+
+```bash
 pip install jupysql
 ```
 
-or:
+or with conda:
 
-```
+```bash
 conda install jupysql -c conda-forge
 ```
 
-### JupyterLab Extension (Optional)
+### From Git (Latest)
 
-For the database browser sidebar in JupyterLab:
+To install the latest development version directly from this repository:
 
-**Using Docker (Recommended):**
 ```bash
-docker-compose up jupysql
+pip install git+https://github.com/Pandry/jupysql.git
 ```
 
-**Local Installation:**
-See [BUILD.md](BUILD.md) for detailed instructions.
+### Using Docker (Recommended for Full Experience)
+
+The Docker image includes JupySQL with the JupyterLab extension and all optional dependencies:
+
+```bash
+# Using docker-compose
+docker-compose up jupysql
+
+# Or using docker directly
+docker pull ghcr.io/pandry/jupysql:latest
+docker run -p 8888:8888 -v $(pwd):/home/shared ghcr.io/pandry/jupysql:latest
+```
+
+Access JupyterLab at `http://localhost:8888` (no token required in default config).
+
+### JupyterLab Extension (Optional)
+
+For the database browser sidebar in JupyterLab, use the Docker installation above or see [BUILD.md](BUILD.md) for local development setup.
 
 After making code changes, see [COMPILE.md](COMPILE.md) for compilation instructions.
 
@@ -72,4 +78,20 @@ To report security vulnerabilities, see [SECURITY.md](SECURITY.md)
 
 ## Credits
 
-This project is a fork of [ipython-sql](https://github.com/catherinedevlin/ipython-sql); the objective is to turn this project into a full-featured SQL client for Jupyter. We're looking for feedback and taking feature requests, so please [join our community](https://ploomber.io/community) and enter the #jupysql channel.
+This project is a continuation fork originally based on work by [Ploomber](https://github.com/ploomber/jupysql), which itself was a fork of [ipython-sql](https://github.com/catherinedevlin/ipython-sql) by Catherine Devlin.
+
+**Acknowledgments:**
+- **Ploomber Team**: For the significant development work that transformed ipython-sql into a full-featured SQL client for Jupyter, including the JupyterLab extension, plotting capabilities, and modern integrations. While Ploomber's commercial operations have concluded, their open-source contributions live on in this project.
+- **Catherine Devlin**: For creating the original ipython-sql project that started it all.
+- **Community Contributors**: Everyone who has contributed to these projects over the years.
+
+This fork maintains and extends the excellent foundation built by these teams, focusing on data analysis workflows and serving as a modern alternative to now-closed projects like Briefer.
+
+## Contributing
+
+We welcome contributions! Please feel free to:
+- Report bugs or request features via [GitHub Issues](https://github.com/Pandry/jupysql/issues)
+- Submit pull requests
+- Improve documentation
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.

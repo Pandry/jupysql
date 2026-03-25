@@ -9,9 +9,9 @@ repository_url, repository_branch = get_repo_and_branch_for_readthedocs(
 # This file extends the auto-generated config from _config.yml
 # Edit _config.yml for most settings, this file for advanced Sphinx config
 ###############################################################################
-author = "Ploomber"
+author = "Pandry (original work by Ploomber)"
 comments_config = {"hypothesis": False, "utterances": False}
-copyright = "2023"
+copyright = "2023-2026"
 exclude_patterns = ["**.ipynb_checkpoints", ".DS_Store", "Thumbs.db", "_build"]
 nb_execution_allow_errors = False
 nb_execution_excludepatterns = [
