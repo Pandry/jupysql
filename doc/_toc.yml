@@ -61,6 +61,7 @@ parts:
     chapters:
     - file: howto
     - file: howto/postgres-install
+    - file: kubernetes-installation
     - file: howto/json
     - file: howto/csv
     - file: howto/ggplot-interact
