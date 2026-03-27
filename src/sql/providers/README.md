@@ -64,6 +64,8 @@ spec:
 
 #### 2. Create ServiceAccount and RBAC
 
+**📖 For detailed RBAC configuration, multi-namespace setup, and security best practices, see [KUBERNETES_RBAC.md](../../../KUBERNETES_RBAC.md)**
+
 Create a ServiceAccount with permissions to list CNPG resources and read secrets:
 
 ```yaml
