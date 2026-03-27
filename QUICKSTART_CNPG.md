@@ -141,8 +141,8 @@ Open your browser to http://localhost:8888
 In a Jupyter notebook:
 
 ```python
-# Load SQL magic
-%load_ext sql
+# The %sql magic is automatically loaded on kernel start
+# (no need for %load_ext sql)
 
 # List available databases
 from sql.providers import get_factory
@@ -279,17 +279,30 @@ The provider will look for the secret `my-postgres-cluster-myuser`.
 - See the [complete Kubernetes example](examples/kubernetes-cnpg-setup.yaml)
 - Try the [Python usage examples](examples/using_providers.py)
 
-## Building the Docker Image
+## Building and Deploying the Docker Image
+
+**Note**: This guide uses a fork of JupySQL with enhanced CNPG provider support.
 
 ```bash
+# Clone the repository
+git clone <repository-url>
+cd jupysql
+
 # Build the image
-docker build -t your-registry/jupysql:latest .
+docker build -t your-registry/jupysql-cnpg:latest .
 
 # Push to registry
-docker push your-registry/jupysql:latest
+docker push your-registry/jupysql-cnpg:latest
 
 # Update your deployment to use the new image
-kubectl set image deployment/jupysql jupysql=your-registry/jupysql:latest
+kubectl set image deployment/jupysql jupysql=your-registry/jupysql-cnpg:latest
+```
+
+Alternatively, use the image directly in your deployment:
+```yaml
+containers:
+  - name: jupysql
+    image: your-registry/jupysql-cnpg:latest
 ```
 
 ## Support

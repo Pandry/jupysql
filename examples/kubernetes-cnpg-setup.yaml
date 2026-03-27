@@ -1,0 +1,274 @@
+# Complete Kubernetes setup for JupySQL with CNPG Provider
+# This example demonstrates how to deploy JupySQL with automatic
+# discovery of CloudNativePG databases
+
+---
+# ServiceAccount for JupySQL
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: jupysql
+  namespace: default
+
+---
+# Role with permissions to read CNPG resources and secrets
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: jupysql-cnpg-reader
+  namespace: default
+rules:
+  # Read CNPG clusters and poolers
+  - apiGroups: ["postgresql.cnpg.io"]
+    resources: ["clusters", "poolers"]
+    verbs: ["get", "list", "watch"]
+  # Read secrets for database credentials
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get"]
+    # Optional: restrict to specific secret names for better security
+    # resourceNames: ["my-cluster-app", "my-cluster-custom-user"]
+
+---
+# RoleBinding to grant permissions to the ServiceAccount
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: jupysql-cnpg-reader
+  namespace: default
+subjects:
+  - kind: ServiceAccount
+    name: jupysql
+    namespace: default
+roleRef:
+  kind: Role
+  name: jupysql-cnpg-reader
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Example CNPG Cluster with JupySQL labels
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: example-postgres
+  namespace: default
+  labels:
+    jupysql.enabled: "true"
+    jupysql.username: "app"
+    environment: "development"
+spec:
+  instances: 3
+  imageName: ghcr.io/cloudnative-pg/postgresql:16
+
+  bootstrap:
+    initdb:
+      database: app
+      owner: app
+
+  storage:
+    size: 10Gi
+    storageClass: standard
+
+  # Optional: Custom users
+  # managed:
+  #   roles:
+  #     - name: custom_user
+  #       ensure: present
+  #       login: true
+
+---
+# Example Read-Write Pooler
+apiVersion: postgresql.cnpg.io/v1
+kind: Pooler
+metadata:
+  name: example-postgres-rw
+  namespace: default
+  labels:
+    jupysql.enabled: "true"
+    jupysql.username: "app"
+    jupysql.pooler-type: "rw"
+spec:
+  cluster:
+    name: example-postgres
+
+  instances: 3
+  type: rw
+
+  pgbouncer:
+    poolMode: session
+    parameters:
+      max_client_conn: "1000"
+      default_pool_size: "25"
+
+---
+# Example Read-Only Pooler
+apiVersion: postgresql.cnpg.io/v1
+kind: Pooler
+metadata:
+  name: example-postgres-ro
+  namespace: default
+  labels:
+    jupysql.enabled: "true"
+    jupysql.username: "app"
+    jupysql.pooler-type: "ro"
+spec:
+  cluster:
+    name: example-postgres
+
+  instances: 3
+  type: ro
+
+  pgbouncer:
+    poolMode: session
+    parameters:
+      max_client_conn: "1000"
+      default_pool_size: "25"
+
+---
+# ConfigMap for JupySQL configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jupysql-config
+  namespace: default
+data:
+  # CNPG Provider Configuration
+  JUPYSQL_CNPG_ENABLED: "true"
+  JUPYSQL_CNPG_NAMESPACE: "default"
+  JUPYSQL_CNPG_LABEL_SELECTOR: "jupysql.enabled=true"
+  JUPYSQL_CNPG_AUTO_REFRESH_INTERVAL: "100"
+  JUPYSQL_CNPG_DEBOUNCE_INTERVAL: "5"
+
+---
+# JupySQL Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jupysql
+  namespace: default
+  labels:
+    app: jupysql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jupysql
+  template:
+    metadata:
+      labels:
+        app: jupysql
+    spec:
+      serviceAccountName: jupysql
+      containers:
+        - name: jupysql
+          image: your-registry/jupysql:latest
+          imagePullPolicy: Always
+
+          ports:
+            - name: http
+              containerPort: 8888
+              protocol: TCP
+
+          envFrom:
+            - configMapRef:
+                name: jupysql-config
+
+          env:
+            - name: JUPYTER_ENABLE_LAB
+              value: "yes"
+
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "2Gi"
+              cpu: "2000m"
+
+          livenessProbe:
+            httpGet:
+              path: /lab
+              port: 8888
+            initialDelaySeconds: 30
+            periodSeconds: 10
+
+          readinessProbe:
+            httpGet:
+              path: /lab
+              port: 8888
+            initialDelaySeconds: 10
+            periodSeconds: 5
+
+          volumeMounts:
+            - name: workspace
+              mountPath: /home/shared
+
+      volumes:
+        - name: workspace
+          emptyDir: {}
+          # Or use PersistentVolumeClaim for persistent storage:
+          # persistentVolumeClaim:
+          #   claimName: jupysql-workspace
+
+---
+# Service for JupySQL
+apiVersion: v1
+kind: Service
+metadata:
+  name: jupysql
+  namespace: default
+  labels:
+    app: jupysql
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8888
+      targetPort: 8888
+      protocol: TCP
+      name: http
+  selector:
+    app: jupysql
+
+---
+# Ingress for external access (optional)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jupysql
+  namespace: default
+  annotations:
+    # Configure according to your ingress controller
+    # nginx.ingress.kubernetes.io/rewrite-target: /
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: jupysql.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: jupysql
+                port:
+                  number: 8888
+  # tls:
+  #   - hosts:
+  #       - jupysql.example.com
+  #     secretName: jupysql-tls
+
+---
+# PersistentVolumeClaim for persistent workspace (optional)
+# apiVersion: v1
+# kind: PersistentVolumeClaim
+# metadata:
+#   name: jupysql-workspace
+#   namespace: default
+# spec:
+#   accessModes:
+#     - ReadWriteOnce
+#   resources:
+#     requests:
+#       storage: 10Gi
+#   storageClassName: standard

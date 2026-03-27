@@ -4,6 +4,8 @@ Database providers enable automatic discovery and management of database connect
 
 ## Overview
 
+**Note**: This is a fork of JupySQL with enhanced database provider support, specifically designed for Kubernetes deployments with CloudNativePG.
+
 JupySQL supports multiple database providers:
 
 1. **StaticDatabaseProvider** - Manually configured databases via API
