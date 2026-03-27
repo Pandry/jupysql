@@ -217,10 +217,10 @@ pip install -e ".[all]"
 
 ```bash
 # Build the Docker image
-docker build -t jupysql-cnpg:latest .
+docker build -t jupysql:latest .
 
 # Run with Docker
-docker run -p 8888:8888 jupysql-cnpg:latest
+docker run -p 8888:8888 jupysql:latest
 
 # Or deploy to Kubernetes (see QUICKSTART_CNPG.md)
 ```

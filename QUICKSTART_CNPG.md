@@ -289,20 +289,20 @@ git clone <repository-url>
 cd jupysql
 
 # Build the image
-docker build -t your-registry/jupysql-cnpg:latest .
+docker build -t your-registry/jupysql:latest .
 
 # Push to registry
-docker push your-registry/jupysql-cnpg:latest
+docker push your-registry/jupysql:latest
 
 # Update your deployment to use the new image
-kubectl set image deployment/jupysql jupysql=your-registry/jupysql-cnpg:latest
+kubectl set image deployment/jupysql jupysql=your-registry/jupysql:latest
 ```
 
 Alternatively, use the image directly in your deployment:
 ```yaml
 containers:
   - name: jupysql
-    image: your-registry/jupysql-cnpg:latest
+    image: your-registry/jupysql:latest
 ```
 
 ## Support
