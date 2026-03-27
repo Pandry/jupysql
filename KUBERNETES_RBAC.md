@@ -176,7 +176,7 @@ spec:
             - name: JUPYSQL_CNPG_NAMESPACE
               value: "databases"
             - name: JUPYSQL_CNPG_LABEL_SELECTOR
-              value: "jupysql.enabled=true"
+              value: "jupysql.pandry.github.io/enabled=true"
 ```
 
 ## Multi-Namespace Setup

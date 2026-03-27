@@ -27,7 +27,7 @@ class CNPGDatabaseProvider(DatabaseProvider):
     Configuration via environment variables:
     - JUPYSQL_CNPG_ENABLED: Enable CNPG provider (default: false)
     - JUPYSQL_CNPG_NAMESPACE: Kubernetes namespace (default: current namespace)
-    - JUPYSQL_CNPG_LABEL_SELECTOR: Label selector for clusters/poolers (default: jupysql.enabled=true)
+    - JUPYSQL_CNPG_LABEL_SELECTOR: Label selector for clusters/poolers (default: jupysql.pandry.github.io/enabled=true)
     - JUPYSQL_CNPG_AUTO_REFRESH_INTERVAL: Auto-refresh interval in seconds (default: 100)
     - JUPYSQL_CNPG_DEBOUNCE_INTERVAL: Debounce interval for manual refresh in seconds (default: 5)
     """
@@ -38,9 +38,17 @@ class CNPGDatabaseProvider(DatabaseProvider):
         # Configuration from environment
         self.enabled = os.getenv("JUPYSQL_CNPG_ENABLED", "false").lower() == "true"
         self.namespace = os.getenv("JUPYSQL_CNPG_NAMESPACE", self._get_current_namespace())
-        self.label_selector = os.getenv("JUPYSQL_CNPG_LABEL_SELECTOR", "jupysql.enabled=true")
+        self.label_selector = os.getenv("JUPYSQL_CNPG_LABEL_SELECTOR", "jupysql.pandry.github.io/enabled=true")
         self.auto_refresh_interval = int(os.getenv("JUPYSQL_CNPG_AUTO_REFRESH_INTERVAL", "100"))
         self.debounce_interval = int(os.getenv("JUPYSQL_CNPG_DEBOUNCE_INTERVAL", "5"))
+
+        # Log configuration on startup
+        if self.enabled:
+            logger.info(f"CNPG Provider initialized:")
+            logger.info(f"  Namespace: {self.namespace}")
+            logger.info(f"  Label selector: {self.label_selector}")
+            logger.info(f"  Auto-refresh interval: {self.auto_refresh_interval}s")
+            logger.info(f"  Debounce interval: {self.debounce_interval}s")
 
         # State
         self._databases: List[DatabaseInfo] = []
@@ -122,28 +130,40 @@ class CNPGDatabaseProvider(DatabaseProvider):
     def _do_refresh(self) -> None:
         """Actually perform the refresh (no debouncing)."""
         if not self.enabled:
+            logger.debug("CNPG provider is disabled, skipping refresh")
             return
+
+        logger.info(f"CNPG provider refresh starting (namespace={self.namespace}, selector={self.label_selector})")
 
         self._init_k8s_client()
         if self._k8s_client is None:
+            logger.warning("Kubernetes client not initialized, cannot refresh")
             return
 
         databases = []
 
         # Discover CNPG clusters
-        databases.extend(self._discover_clusters())
+        clusters = self._discover_clusters()
+        logger.info(f"Discovered {len(clusters)} CNPG cluster(s)")
+        databases.extend(clusters)
 
         # Discover CNPG poolers
-        databases.extend(self._discover_poolers())
+        poolers = self._discover_poolers()
+        logger.info(f"Discovered {len(poolers)} CNPG pooler(s)")
+        databases.extend(poolers)
 
         with self._lock:
             self._databases = databases
+
+        logger.info(f"CNPG provider refresh complete: {len(databases)} total database(s) available")
 
     def _discover_clusters(self) -> List[DatabaseInfo]:
         """Discover CNPG clusters with matching labels."""
         databases = []
 
         try:
+            logger.debug(f"Querying K8s API for clusters in namespace '{self.namespace}' with selector '{self.label_selector}'")
+
             # List CNPG Cluster resources
             clusters = self._k8s_custom_api.list_namespaced_custom_object(
                 group="postgresql.cnpg.io",
@@ -153,17 +173,26 @@ class CNPGDatabaseProvider(DatabaseProvider):
                 label_selector=self.label_selector,
             )
 
-            for cluster in clusters.get("items", []):
+            cluster_items = clusters.get("items", [])
+            logger.debug(f"Found {len(cluster_items)} cluster(s) matching selector")
+
+            for cluster in cluster_items:
                 try:
+                    cluster_name = cluster.get("metadata", {}).get("name", "unknown")
+                    logger.debug(f"Processing cluster: {cluster_name}")
+
                     db_info = self._create_database_info_from_cluster(cluster)
                     if db_info:
                         databases.append(db_info)
+                        logger.info(f"Added cluster: {db_info.name} ({db_info.identifier})")
+                    else:
+                        logger.warning(f"Cluster '{cluster_name}' returned no database info (missing credentials?)")
                 except Exception as e:
                     cluster_name = cluster.get("metadata", {}).get("name", "unknown")
-                    logger.error(f"Error processing cluster '{cluster_name}': {e}")
+                    logger.error(f"Error processing cluster '{cluster_name}': {e}", exc_info=True)
 
         except Exception as e:
-            logger.error(f"Error listing CNPG clusters: {e}")
+            logger.error(f"Error listing CNPG clusters: {e}", exc_info=True)
 
         return databases
 
@@ -172,6 +201,8 @@ class CNPGDatabaseProvider(DatabaseProvider):
         databases = []
 
         try:
+            logger.debug(f"Querying K8s API for poolers in namespace '{self.namespace}' with selector '{self.label_selector}'")
+
             # List CNPG Pooler resources
             poolers = self._k8s_custom_api.list_namespaced_custom_object(
                 group="postgresql.cnpg.io",
@@ -181,17 +212,26 @@ class CNPGDatabaseProvider(DatabaseProvider):
                 label_selector=self.label_selector,
             )
 
-            for pooler in poolers.get("items", []):
+            pooler_items = poolers.get("items", [])
+            logger.debug(f"Found {len(pooler_items)} pooler(s) matching selector")
+
+            for pooler in pooler_items:
                 try:
+                    pooler_name = pooler.get("metadata", {}).get("name", "unknown")
+                    logger.debug(f"Processing pooler: {pooler_name}")
+
                     db_info = self._create_database_info_from_pooler(pooler)
                     if db_info:
                         databases.append(db_info)
+                        logger.info(f"Added pooler: {db_info.name} ({db_info.identifier})")
+                    else:
+                        logger.warning(f"Pooler '{pooler_name}' returned no database info")
                 except Exception as e:
                     pooler_name = pooler.get("metadata", {}).get("name", "unknown")
-                    logger.error(f"Error processing pooler '{pooler_name}': {e}")
+                    logger.error(f"Error processing pooler '{pooler_name}': {e}", exc_info=True)
 
         except Exception as e:
-            logger.error(f"Error listing CNPG poolers: {e}")
+            logger.error(f"Error listing CNPG poolers: {e}", exc_info=True)
 
         return databases
 
@@ -213,7 +253,9 @@ class CNPGDatabaseProvider(DatabaseProvider):
         database = spec.get("bootstrap", {}).get("initdb", {}).get("database", "app")
 
         # Get username from labels or use default
-        username = labels.get("jupysql.username", "app")
+        # Check if readonly mode is requested
+        readonly = labels.get("jupysql.pandry.github.io/readonly", "false").lower() == "true"
+        username = labels.get("jupysql.pandry.github.io/username", "ro" if readonly else "app")
 
         # Get credentials from secret
         password = self._get_password_from_secret(name, username)
@@ -227,10 +269,13 @@ class CNPGDatabaseProvider(DatabaseProvider):
         # Create identifier
         identifier = f"cnpg:cluster:{self.namespace}:{name}"
 
+        # Get custom alias from labels or use default
+        alias = labels.get("jupysql.pandry.github.io/alias", f"{name} (cluster)")
+
         # Create DatabaseInfo
         return DatabaseInfo(
             identifier=identifier,
-            name=f"{name} (cluster)",
+            name=alias,
             connection_string=connection_string,
             provider=self.name,
             metadata={
@@ -262,8 +307,8 @@ class CNPGDatabaseProvider(DatabaseProvider):
             logger.warning(f"Pooler '{name}' has no cluster reference")
             return None
 
-        # Get service name
-        service_name = f"{name}-rw"
+        # Get service name (pooler service is just the pooler name, not {name}-rw)
+        service_name = name
         host = f"{service_name}.{self.namespace}.svc.cluster.local"
         port = 5432
 
@@ -276,7 +321,7 @@ class CNPGDatabaseProvider(DatabaseProvider):
             database = "app"
 
         # Get username from labels or use default
-        username = labels.get("jupysql.username", "app")
+        username = labels.get("jupysql.pandry.github.io/username", "app")
 
         # Get credentials from cluster secret
         password = self._get_password_from_secret(cluster_ref, username)
@@ -290,10 +335,13 @@ class CNPGDatabaseProvider(DatabaseProvider):
         # Create identifier
         identifier = f"cnpg:pooler:{self.namespace}:{name}"
 
+        # Get custom alias from labels or use default
+        alias = labels.get("jupysql.pandry.github.io/alias", f"{name} ({pooler_type} pooler)")
+
         # Create DatabaseInfo
         return DatabaseInfo(
             identifier=identifier,
-            name=f"{name} ({pooler_type} pooler)",
+            name=alias,
             connection_string=connection_string,
             provider=self.name,
             metadata={

@@ -198,24 +198,33 @@ class SqlMagic(Magics, Configurable):
 
     def _initialize_providers(self):
         """Initialize and register database providers."""
+        import logging
         from sql.providers import get_factory
         from sql.providers.static import StaticDatabaseProvider
         from sql.providers.config_file import ConfigFileDatabaseProvider
         from sql.providers.cnpg import CNPGDatabaseProvider
+
+        logger = logging.getLogger(__name__)
+        logger.info("Initializing database providers...")
 
         factory = get_factory()
 
         # Register static provider (always enabled)
         static_provider = StaticDatabaseProvider()
         factory.register_provider(static_provider)
+        logger.info("Registered static provider")
 
         # Register config file provider (always enabled)
         config_file_provider = ConfigFileDatabaseProvider(self.dsn_filename)
         factory.register_provider(config_file_provider)
+        logger.info("Registered config file provider")
 
         # Register CNPG provider (enabled via env var)
         cnpg_provider = CNPGDatabaseProvider()
         factory.register_provider(cnpg_provider)
+        logger.info(f"Registered CNPG provider (enabled={cnpg_provider.is_enabled()})")
+
+        logger.info(f"Provider initialization complete. Total providers: {len(factory.list_providers())}")
 
     @validate("dsn_filename")
     def _valid_dsn_filename(self, proposal):

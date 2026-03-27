@@ -103,7 +103,7 @@ Added four new handler classes:
 Added environment variables:
 ```dockerfile
 ENV JUPYSQL_CNPG_ENABLED=false
-ENV JUPYSQL_CNPG_LABEL_SELECTOR=jupysql.enabled=true
+ENV JUPYSQL_CNPG_LABEL_SELECTOR=jupysql.pandry.github.io/enabled=true
 ENV JUPYSQL_CNPG_AUTO_REFRESH_INTERVAL=100
 ENV JUPYSQL_CNPG_DEBOUNCE_INTERVAL=5
 ```
@@ -183,9 +183,9 @@ extras_require={
 - Format: `postgresql://{user}:{pass}@{host}:{port}/{db}`
 
 ### 4. Label Conventions
-- `jupysql.enabled=true` - Include in discovery
-- `jupysql.username=myuser` - Specify username
-- `jupysql.pooler-type=rw` - Pooler type (rw/ro)
+- `jupysql.pandry.github.io/enabled=true` - Include in discovery
+- `jupysql.pandry.github.io/username=myuser` - Specify username
+- `jupysql.pandry.github.io/pooler-type=rw` - Pooler type (rw/ro)
 
 ### 5. Auto-Refresh
 - Background thread refreshes database list periodically
@@ -286,7 +286,7 @@ curl -X POST http://localhost:8888/jupysql/providers/connect \
 ### Prerequisites
 
 1. CloudNativePG operator installed
-2. CNPG clusters/poolers labeled with `jupysql.enabled=true`
+2. CNPG clusters/poolers labeled with `jupysql.pandry.github.io/enabled=true`
 3. ServiceAccount with RBAC permissions
 
 ### Quick Start
@@ -311,7 +311,7 @@ env:
   - name: JUPYSQL_CNPG_ENABLED
     value: "true"
   - name: JUPYSQL_CNPG_LABEL_SELECTOR
-    value: "jupysql.enabled=true,environment=production"
+    value: "jupysql.pandry.github.io/enabled=true,environment=production"
   - name: JUPYSQL_CNPG_AUTO_REFRESH_INTERVAL
     value: "60"
 ```
@@ -376,8 +376,8 @@ python examples/using_providers.py
 
 3. Check labels:
    ```bash
-   kubectl get clusters -l jupysql.enabled=true
-   kubectl get poolers -l jupysql.enabled=true
+   kubectl get clusters -l jupysql.pandry.github.io/enabled=true
+   kubectl get poolers -l jupysql.pandry.github.io/enabled=true
    ```
 
 ### Import Errors

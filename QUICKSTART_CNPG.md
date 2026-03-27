@@ -10,11 +10,11 @@ Get JupySQL automatically discovering your CloudNativePG databases in 5 minutes!
 
 ## Step 1: Label Your CNPG Clusters
 
-Add the `jupysql.enabled=true` label to your CNPG clusters:
+Add the `jupysql.pandry.github.io/enabled=true` label to your CNPG clusters:
 
 ```bash
 # Label an existing cluster
-kubectl label cluster my-postgres-cluster jupysql.enabled=true
+kubectl label cluster my-postgres-cluster jupysql.pandry.github.io/enabled=true
 
 # Or edit the cluster YAML
 kubectl edit cluster my-postgres-cluster
@@ -24,12 +24,12 @@ Add to the metadata:
 ```yaml
 metadata:
   labels:
-    jupysql.enabled: "true"
+    jupysql.pandry.github.io/enabled: "true"
 ```
 
 Verify:
 ```bash
-kubectl get clusters -l jupysql.enabled=true
+kubectl get clusters -l jupysql.pandry.github.io/enabled=true
 ```
 
 ## Step 2: Create ServiceAccount and RBAC
@@ -107,7 +107,7 @@ spec:
             - name: JUPYSQL_CNPG_ENABLED
               value: "true"
             - name: JUPYSQL_CNPG_LABEL_SELECTOR
-              value: "jupysql.enabled=true"
+              value: "jupysql.pandry.github.io/enabled=true"
 ---
 apiVersion: v1
 kind: Service
@@ -191,9 +191,9 @@ env:
   - name: JUPYSQL_CNPG_NAMESPACE
     value: "default"
 
-  # Label selector (default: jupysql.enabled=true)
+  # Label selector (default: jupysql.pandry.github.io/enabled=true)
   - name: JUPYSQL_CNPG_LABEL_SELECTOR
-    value: "jupysql.enabled=true,environment=production"
+    value: "jupysql.pandry.github.io/enabled=true,environment=production"
 
   # Auto-refresh interval in seconds (default: 100)
   - name: JUPYSQL_CNPG_AUTO_REFRESH_INTERVAL
@@ -210,10 +210,10 @@ If you have both read-write and read-only poolers:
 
 ```bash
 # Label the read-write pooler
-kubectl label pooler my-db-rw jupysql.enabled=true jupysql.pooler-type=rw
+kubectl label pooler my-db-rw jupysql.pandry.github.io/enabled=true jupysql.pandry.github.io/pooler-type=rw
 
 # Label the read-only pooler
-kubectl label pooler my-db-ro jupysql.enabled=true jupysql.pooler-type=ro
+kubectl label pooler my-db-ro jupysql.pandry.github.io/enabled=true jupysql.pandry.github.io/pooler-type=ro
 ```
 
 Both will appear in the database list:
@@ -228,7 +228,7 @@ To use a different database user:
 
 ```bash
 # Label the cluster with custom username
-kubectl label cluster my-postgres-cluster jupysql.username=myuser
+kubectl label cluster my-postgres-cluster jupysql.pandry.github.io/username=myuser
 ```
 
 The provider will look for the secret `my-postgres-cluster-myuser`.
@@ -239,8 +239,8 @@ The provider will look for the secret `my-postgres-cluster-myuser`.
 
 1. Check labels:
    ```bash
-   kubectl get clusters -l jupysql.enabled=true
-   kubectl get poolers -l jupysql.enabled=true
+   kubectl get clusters -l jupysql.pandry.github.io/enabled=true
+   kubectl get poolers -l jupysql.pandry.github.io/enabled=true
    ```
 
 2. Check JupySQL logs:

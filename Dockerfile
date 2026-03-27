@@ -126,12 +126,12 @@ ENV JUPYSQL_CNPG_ENABLED=true
 # Kubernetes namespace to search for CNPG clusters (default: auto-detect from serviceaccount)
 # ENV JUPYSQL_CNPG_NAMESPACE=default
 
-# Label selector for filtering CNPG clusters and poolers (default: jupysql.enabled=true)
+# Label selector for filtering CNPG clusters and poolers (default: jupysql.pandry.github.io/enabled=true)
 # Examples:
-#   - jupysql.enabled=true (default)
+#   - jupysql.pandry.github.io/enabled=true (default)
 #   - app=myapp,environment=production
-#   - jupysql.enabled=true,tenant=acme
-ENV JUPYSQL_CNPG_LABEL_SELECTOR=jupysql.enabled=true
+#   - jupysql.pandry.github.io/enabled=true,tenant=acme
+ENV JUPYSQL_CNPG_LABEL_SELECTOR=jupysql.pandry.github.io/enabled=true
 
 # Auto-refresh interval in seconds (default: 100)
 # How often to automatically refresh the list of available databases

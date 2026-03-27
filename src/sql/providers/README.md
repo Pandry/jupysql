@@ -24,7 +24,7 @@ Configure the CNPG provider using environment variables:
 |----------|---------|-------------|
 | `JUPYSQL_CNPG_ENABLED` | `false` | Enable CNPG provider |
 | `JUPYSQL_CNPG_NAMESPACE` | auto-detect | Kubernetes namespace to search |
-| `JUPYSQL_CNPG_LABEL_SELECTOR` | `jupysql.enabled=true` | Label selector for filtering |
+| `JUPYSQL_CNPG_LABEL_SELECTOR` | `jupysql.pandry.github.io/enabled=true` | Label selector for filtering |
 | `JUPYSQL_CNPG_AUTO_REFRESH_INTERVAL` | `100` | Auto-refresh interval (seconds) |
 | `JUPYSQL_CNPG_DEBOUNCE_INTERVAL` | `5` | Manual refresh debounce (seconds) |
 
@@ -40,8 +40,8 @@ kind: Cluster
 metadata:
   name: my-postgres-cluster
   labels:
-    jupysql.enabled: "true"
-    jupysql.username: "app"  # Optional: specify username (default: "app")
+    jupysql.pandry.github.io/enabled: "true"
+    jupysql.pandry.github.io/username: "app"  # Optional: specify username (default: "app")
 spec:
   instances: 3
   # ... rest of cluster spec
@@ -55,9 +55,9 @@ kind: Pooler
 metadata:
   name: my-pooler-rw
   labels:
-    jupysql.enabled: "true"
-    jupysql.username: "app"
-    jupysql.pooler-type: "rw"  # rw or ro
+    jupysql.pandry.github.io/enabled: "true"
+    jupysql.pandry.github.io/username: "app"
+    jupysql.pandry.github.io/pooler-type: "rw"  # rw or ro
 spec:
   cluster:
     name: my-postgres-cluster
@@ -125,7 +125,7 @@ spec:
             - name: JUPYSQL_CNPG_ENABLED
               value: "true"
             - name: JUPYSQL_CNPG_LABEL_SELECTOR
-              value: "jupysql.enabled=true"
+              value: "jupysql.pandry.github.io/enabled=true"
           ports:
             - containerPort: 8888
 ```
@@ -136,7 +136,7 @@ spec:
 2. **Credentials**: For each resource, it looks up the corresponding Kubernetes secret:
    - Secret name format: `{cluster-name}-{username}`
    - Key: `password`
-   - Username: From label `jupysql.username` or defaults to `app`
+   - Username: From label `jupysql.pandry.github.io/username` or defaults to `app`
 3. **Connection String**: Builds PostgreSQL connection strings using:
    - Host: `{resource-name}-rw.{namespace}.svc.cluster.local`
    - Port: `5432`
@@ -145,9 +145,9 @@ spec:
 
 ### Label Conventions
 
-- `jupysql.enabled=true` - Include this resource in discovery
-- `jupysql.username=myuser` - Username to use (default: `app`)
-- `jupysql.pooler-type=rw` - Pooler type for display (rw/ro)
+- `jupysql.pandry.github.io/enabled=true` - Include this resource in discovery
+- `jupysql.pandry.github.io/username=myuser` - Username to use (default: `app`)
+- `jupysql.pandry.github.io/pooler-type=rw` - Pooler type for display (rw/ro)
 
 ### Multiple Poolers
 
@@ -160,8 +160,8 @@ kind: Pooler
 metadata:
   name: mydb-rw
   labels:
-    jupysql.enabled: "true"
-    jupysql.pooler-type: "rw"
+    jupysql.pandry.github.io/enabled: "true"
+    jupysql.pandry.github.io/pooler-type: "rw"
 ---
 # Read-only pooler
 apiVersion: postgresql.cnpg.io/v1
@@ -169,8 +169,8 @@ kind: Pooler
 metadata:
   name: mydb-ro
   labels:
-    jupysql.enabled: "true"
-    jupysql.pooler-type: "ro"
+    jupysql.pandry.github.io/enabled: "true"
+    jupysql.pandry.github.io/pooler-type: "ro"
 ```
 
 Both will be discovered and added to the database list.
@@ -215,7 +215,7 @@ Returns:
         "cluster_name": "my-cluster"
       },
       "labels": {
-        "jupysql.enabled": "true"
+        "jupysql.pandry.github.io/enabled": "true"
       }
     }
   ]
@@ -308,8 +308,8 @@ ConnectionManager.refresh_providers("cnpg")
 
 3. Check labels on CNPG resources:
    ```bash
-   kubectl get clusters -l jupysql.enabled=true
-   kubectl get poolers -l jupysql.enabled=true
+   kubectl get clusters -l jupysql.pandry.github.io/enabled=true
+   kubectl get poolers -l jupysql.pandry.github.io/enabled=true
    ```
 
 4. Verify secrets exist:
