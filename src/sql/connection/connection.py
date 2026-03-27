@@ -466,6 +466,91 @@ class ConnectionManager:
                     f"\n\n{str(e)}"
                 )
 
+    @classmethod
+    def list_available_databases(cls, provider_names=None):
+        """
+        List all available databases from registered providers.
+
+        Parameters
+        ----------
+        provider_names : list of str, optional
+            Names of providers to query. If None, queries all enabled providers.
+
+        Returns
+        -------
+        list
+            List of DatabaseInfo objects from all providers
+        """
+        from sql.providers import get_factory
+
+        factory = get_factory()
+        return factory.list_databases(provider_names=provider_names)
+
+    @classmethod
+    def refresh_providers(cls, provider_name=None):
+        """
+        Refresh database providers to discover new databases.
+
+        Parameters
+        ----------
+        provider_name : str, optional
+            Name of a specific provider to refresh. If None, refreshes all providers.
+        """
+        from sql.providers import get_factory
+
+        factory = get_factory()
+        if provider_name:
+            factory.refresh_provider(provider_name)
+        else:
+            factory.refresh_all()
+
+    @classmethod
+    def connect_from_provider(cls, identifier, config=None, alias=None):
+        """
+        Connect to a database from a provider by its identifier.
+
+        Parameters
+        ----------
+        identifier : str
+            Unique identifier for the database (e.g., 'cnpg:cluster:namespace:name')
+        config : object, optional
+            Configuration object with connection options
+        alias : str, optional
+            Alias to assign to the connection
+
+        Returns
+        -------
+        AbstractConnection
+            The established connection
+
+        Raises
+        ------
+        exceptions.RuntimeError
+            If the database is not found in any provider
+        """
+        from sql.providers import get_factory
+
+        factory = get_factory()
+        db_info = factory.get_database(identifier)
+
+        if db_info is None:
+            raise exceptions.RuntimeError(
+                f"Database with identifier {identifier!r} not found in any provider. "
+                f"Available providers: {factory.list_providers()}"
+            )
+
+        # Use the database's name as alias if none provided
+        if alias is None:
+            alias = db_info.name
+
+        # Connect using the connection string
+        return cls.set(
+            db_info.connection_string,
+            displaycon=True,
+            alias=alias,
+            config=config,
+        )
+
 
 class AbstractConnection(abc.ABC):
     """The abstract base class for all connections"""

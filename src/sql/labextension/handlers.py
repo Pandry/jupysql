@@ -964,32 +964,240 @@ except Exception as _e:
             self.write_json({"error": str(e)})
 
 
+class ProvidersHandler(BaseJupySQLHandler):
+    """GET /jupysql/providers — list all registered database providers."""
+
+    async def get(self) -> None:
+        """List all registered database providers and their status."""
+        try:
+            code = """\
+import json
+try:
+    from sql.providers import get_factory
+    factory = get_factory()
+    providers = []
+    for name in factory.list_providers():
+        provider = factory.get_provider(name)
+        providers.append({
+            'name': name,
+            'enabled': provider.is_enabled()
+        })
+    print(json.dumps({'providers': providers}))
+except Exception as e:
+    print(json.dumps({'error': str(e)}))
+"""
+            result = await self._execute_kernel_request(code)
+            if result and 'error' not in result:
+                self.write_json(result)
+            else:
+                self.set_status(500)
+                self.write_json(result or {"error": "Failed to list providers"})
+
+        except Exception as e:
+            self.log.error(f"Error listing providers: {e}")
+            self.set_status(500)
+            self.write_json({"error": str(e)})
+
+
+class AvailableDatabasesHandler(BaseJupySQLHandler):
+    """GET /jupysql/available-databases — list all databases from providers."""
+
+    async def get(self) -> None:
+        """List all databases available from registered providers.
+
+        Query parameters:
+          - ``providers`` (optional): Comma-separated list of provider names to query.
+            If not provided, queries all enabled providers.
+        """
+        try:
+            provider_names = self.get_argument("providers", None)
+
+            if provider_names:
+                providers_list = f"[{', '.join(repr(p.strip()) for p in provider_names.split(','))}]"
+            else:
+                providers_list = "None"
+
+            code = f"""\
+import json
+try:
+    from sql.providers import get_factory
+    factory = get_factory()
+    databases = factory.list_databases(provider_names={providers_list})
+
+    # Convert DatabaseInfo objects to dicts
+    db_list = []
+    for db in databases:
+        db_list.append({{
+            'identifier': db.identifier,
+            'name': db.name,
+            'connection_string': db.connection_string,
+            'provider': db.provider,
+            'metadata': db.metadata,
+            'host': db.host,
+            'port': db.port,
+            'database': db.database,
+            'username': db.username,
+            'labels': db.labels,
+        }})
+
+    print(json.dumps({{'databases': db_list}}))
+except Exception as e:
+    import traceback
+    print(json.dumps({{'error': str(e), 'traceback': traceback.format_exc()}}))
+"""
+            result = await self._execute_kernel_request(code)
+            if result and 'error' not in result:
+                self.write_json(result)
+            else:
+                self.set_status(500)
+                self.write_json(result or {"error": "Failed to list databases"})
+
+        except Exception as e:
+            self.log.error(f"Error listing available databases: {e}")
+            self.set_status(500)
+            self.write_json({"error": str(e)})
+
+
+class RefreshProvidersHandler(BaseJupySQLHandler):
+    """POST /jupysql/providers/refresh — refresh database providers."""
+
+    async def post(self) -> None:
+        """Refresh database providers to discover new databases.
+
+        Request body (optional): ``{ "provider_name": "<name>" }``
+        If provider_name is not provided, refreshes all providers.
+        """
+        try:
+            provider_name = None
+            if self.request.body:
+                data = json.loads(self.request.body.decode("utf-8"))
+                provider_name = data.get("provider_name")
+
+            if provider_name:
+                code = f"""\
+import json
+try:
+    from sql.providers import get_factory
+    factory = get_factory()
+    factory.refresh_provider({repr(provider_name)})
+    print(json.dumps({{'status': 'success', 'message': f'Refreshed provider {{repr(provider_name)}}'}}))
+except Exception as e:
+    print(json.dumps({{'error': str(e)}}))
+"""
+            else:
+                code = """\
+import json
+try:
+    from sql.providers import get_factory
+    factory = get_factory()
+    factory.refresh_all()
+    print(json.dumps({'status': 'success', 'message': 'Refreshed all providers'}))
+except Exception as e:
+    print(json.dumps({'error': str(e)}))\n"""
+
+            result = await self._execute_kernel_request(code)
+            if result and 'error' not in result:
+                self.write_json(result)
+            else:
+                self.set_status(500)
+                self.write_json(result or {"error": "Failed to refresh providers"})
+
+        except Exception as e:
+            self.log.error(f"Error refreshing providers: {e}")
+            self.set_status(500)
+            self.write_json({"error": str(e)})
+
+
+class ConnectFromProviderHandler(BaseJupySQLHandler):
+    """POST /jupysql/providers/connect — connect to a database from a provider."""
+
+    async def post(self) -> None:
+        """Connect to a database discovered by a provider.
+
+        Request body: ``{ "identifier": str, "alias": str (optional) }``
+        """
+        try:
+            data = json.loads(self.request.body.decode("utf-8"))
+            identifier = data.get("identifier")
+            alias = data.get("alias")
+
+            if not identifier:
+                self.set_status(400)
+                self.write_json({"error": "identifier is required"})
+                return
+
+            alias_repr = repr(alias) if alias else "None"
+
+            code = f"""\
+import json
+{_LOAD_EXT_SILENT}
+try:
+    from sql.connection import ConnectionManager
+    conn = ConnectionManager.connect_from_provider(
+        identifier={repr(identifier)},
+        alias={alias_repr}
+    )
+
+    result = {{
+        'status': 'success',
+        'connection': {{
+            'key': str(conn.url) if hasattr(conn, 'url') else '',
+            'url': str(conn.url) if hasattr(conn, 'url') else '',
+            'alias': conn.alias or '',
+        }}
+    }}
+    print(json.dumps(result))
+except Exception as e:
+    import traceback
+    print(json.dumps({{'error': str(e), 'traceback': traceback.format_exc()}}))
+"""
+            result = await self._execute_kernel_request(code)
+            if result and 'error' not in result:
+                self.write_json(result)
+            else:
+                self.set_status(500)
+                self.write_json(result or {"error": "Failed to connect from provider"})
+
+        except Exception as e:
+            self.log.error(f"Error connecting from provider: {e}")
+            self.set_status(500)
+            self.write_json({"error": str(e)})
+
+
 def setup_handlers(web_app, log):
     """Register all JupySQL REST API handlers with the Jupyter web application.
 
     URL map:
-      POST   /jupysql/init        — load %sql magic in all kernels
-      GET    /jupysql/connections — list active connections
-      POST   /jupysql/connections — add a new connection
-      DELETE /jupysql/connections — remove a connection
-      GET    /jupysql/schemas     — list schemas for a connection
-      GET    /jupysql/tables      — list tables in a schema
-      GET    /jupysql/columns     — list columns in a table
-      GET    /jupysql/preview     — fetch a paginated row sample
-      POST   /jupysql/switch      — change the active connection
-      GET    /jupysql/kernels     — list running kernels
+      POST   /jupysql/init                  — load %sql magic in all kernels
+      GET    /jupysql/connections           — list active connections
+      POST   /jupysql/connections           — add a new connection
+      DELETE /jupysql/connections           — remove a connection
+      GET    /jupysql/schemas               — list schemas for a connection
+      GET    /jupysql/tables                — list tables in a schema
+      GET    /jupysql/columns               — list columns in a table
+      GET    /jupysql/preview               — fetch a paginated row sample
+      POST   /jupysql/switch                — change the active connection
+      GET    /jupysql/kernels               — list running kernels
+      GET    /jupysql/providers             — list registered database providers
+      GET    /jupysql/available-databases   — list databases from providers
+      POST   /jupysql/providers/refresh     — refresh database providers
+      POST   /jupysql/providers/connect     — connect to a database from provider
     """
     host_pattern = ".*$"
     base_url = web_app.settings["base_url"]
     handlers = [
-        (url_path_join(base_url, "jupysql", "init"),        InitHandler),
-        (url_path_join(base_url, "jupysql", "connections"), ConnectionsHandler),
-        (url_path_join(base_url, "jupysql", "schemas"),     SchemasHandler),
-        (url_path_join(base_url, "jupysql", "tables"),      TablesHandler),
-        (url_path_join(base_url, "jupysql", "columns"),     ColumnsHandler),
-        (url_path_join(base_url, "jupysql", "preview"),     PreviewHandler),
-        (url_path_join(base_url, "jupysql", "switch"),      SwitchConnectionHandler),
-        (url_path_join(base_url, "jupysql", "kernels"),     KernelsHandler),
+        (url_path_join(base_url, "jupysql", "init"),                InitHandler),
+        (url_path_join(base_url, "jupysql", "connections"),         ConnectionsHandler),
+        (url_path_join(base_url, "jupysql", "schemas"),             SchemasHandler),
+        (url_path_join(base_url, "jupysql", "tables"),              TablesHandler),
+        (url_path_join(base_url, "jupysql", "columns"),             ColumnsHandler),
+        (url_path_join(base_url, "jupysql", "preview"),             PreviewHandler),
+        (url_path_join(base_url, "jupysql", "switch"),              SwitchConnectionHandler),
+        (url_path_join(base_url, "jupysql", "kernels"),             KernelsHandler),
+        (url_path_join(base_url, "jupysql", "providers"),           ProvidersHandler),
+        (url_path_join(base_url, "jupysql", "available-databases"), AvailableDatabasesHandler),
+        (url_path_join(base_url, "jupysql", "providers", "refresh"), RefreshProvidersHandler),
+        (url_path_join(base_url, "jupysql", "providers", "connect"), ConnectFromProviderHandler),
     ]
     web_app.add_handlers(host_pattern, handlers)
     log.info(f"JupySQL REST API handlers registered at {base_url}jupysql/*")

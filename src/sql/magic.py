@@ -193,6 +193,30 @@ class SqlMagic(Magics, Configurable):
         # Add ourself to the list of module configurable via %config
         self.shell.configurables.append(self)
 
+        # Initialize database providers
+        self._initialize_providers()
+
+    def _initialize_providers(self):
+        """Initialize and register database providers."""
+        from sql.providers import get_factory
+        from sql.providers.static import StaticDatabaseProvider
+        from sql.providers.config_file import ConfigFileDatabaseProvider
+        from sql.providers.cnpg import CNPGDatabaseProvider
+
+        factory = get_factory()
+
+        # Register static provider (always enabled)
+        static_provider = StaticDatabaseProvider()
+        factory.register_provider(static_provider)
+
+        # Register config file provider (always enabled)
+        config_file_provider = ConfigFileDatabaseProvider(self.dsn_filename)
+        factory.register_provider(config_file_provider)
+
+        # Register CNPG provider (enabled via env var)
+        cnpg_provider = CNPGDatabaseProvider()
+        factory.register_provider(cnpg_provider)
+
     @validate("dsn_filename")
     def _valid_dsn_filename(self, proposal):
         path = Path(proposal["value"]).expanduser()

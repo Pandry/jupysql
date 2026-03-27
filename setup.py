@@ -108,6 +108,11 @@ INTEGRATION = [
     "grpcio-status",
 ]
 
+# dependencies for CNPG provider (Kubernetes integration)
+CNPG = [
+    "kubernetes>=28.0.0",
+]
+
 setup(
     name="jupysql",
     version=VERSION,
@@ -139,6 +144,8 @@ setup(
     extras_require={
         "dev": DEV,
         "integration": DEV + INTEGRATION,
+        "cnpg": CNPG,
+        "all": DEV + INTEGRATION + CNPG,
     },
     entry_points={
         "jupyter_serverproxy_servers": [
