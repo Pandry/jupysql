@@ -64,11 +64,13 @@ RUN apt-get update && apt-get install -y \
 RUN pip install -e . && \
     # Mandatory DB
     pip install --no-cache-dir psycopg2-binary duckdb-engine matplotlib pandas \
+    # Kubernetes client for CNPG provider
+    kubernetes \
     # Jupytext for declarative notebooks
     jupytext \
     # ipywidgets
     ipywidgets \
-    # Chat 
+    # Chat
     jupyterlab-chat \
     # Git
     jupyterlab-git \
@@ -97,6 +99,16 @@ RUN jupyter server extension list && \
 
 RUN useradd -m -u 1000 -g 100 -d /home/shared -s /bin/bash jupyter
 
+# Create IPython startup script to auto-load %sql magic
+# This ensures database providers are initialized when any kernel starts
+RUN mkdir -p /home/shared/.ipython/profile_default/startup && \
+    echo "# Auto-load JupySQL extension to initialize database providers" > /home/shared/.ipython/profile_default/startup/00-jupysql-autoload.py && \
+    echo "try:" >> /home/shared/.ipython/profile_default/startup/00-jupysql-autoload.py && \
+    echo "    get_ipython().run_line_magic('load_ext', 'sql')" >> /home/shared/.ipython/profile_default/startup/00-jupysql-autoload.py && \
+    echo "except Exception:" >> /home/shared/.ipython/profile_default/startup/00-jupysql-autoload.py && \
+    echo "    pass" >> /home/shared/.ipython/profile_default/startup/00-jupysql-autoload.py && \
+    chown -R jupyter:users /home/shared/.ipython
+
 USER jupyter
 WORKDIR /home/shared
 
@@ -106,6 +118,28 @@ EXPOSE 8888
 
 # Set environment variables
 ENV JUPYTER_ENABLE_LAB=yes
+
+# CNPG Database Provider Configuration
+# Enable CNPG provider (set to "false" to disable automatic discovery of CNPG clusters)
+ENV JUPYSQL_CNPG_ENABLED=true
+
+# Kubernetes namespace to search for CNPG clusters (default: auto-detect from serviceaccount)
+# ENV JUPYSQL_CNPG_NAMESPACE=default
+
+# Label selector for filtering CNPG clusters and poolers (default: jupysql.enabled=true)
+# Examples:
+#   - jupysql.enabled=true (default)
+#   - app=myapp,environment=production
+#   - jupysql.enabled=true,tenant=acme
+ENV JUPYSQL_CNPG_LABEL_SELECTOR=jupysql.enabled=true
+
+# Auto-refresh interval in seconds (default: 100)
+# How often to automatically refresh the list of available databases
+ENV JUPYSQL_CNPG_AUTO_REFRESH_INTERVAL=100
+
+# Debounce interval in seconds (default: 5)
+# Minimum time between manual refresh requests to prevent K8s API spam
+ENV JUPYSQL_CNPG_DEBOUNCE_INTERVAL=5
 
 # Run JupyterLab
 CMD ["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root", "--ServerApp.token=''", "--ServerApp.password=''", "--ServerApp.disable_check_xsrf=True"]
