@@ -686,6 +686,20 @@ const DatabaseBrowserPanel: React.FC<IDatabaseBrowserPanelProps> = ({ app }) => 
 
     if (node.type === 'connection') {
       const conn = connectionsRef.current.find(c => c.key === node.metadata?.key);
+
+      // Only show "Use in notebook" if the connection has an alias
+      // (to avoid exposing credentials from the connection URL)
+      if (conn?.alias) {
+        items.push(
+          { label: `Use "${conn.alias}" in notebook`, action: async () => {
+            // Insert a cell that switches to this connection using its alias
+            const cellCode = `%sql ${conn.alias}`;
+            await insertIntoNotebook([cellCode]);
+          }},
+          { divider: true },
+        );
+      }
+
       items.push(
         { label: 'Edit connection…', action: () => { if (conn) setDetailConn(conn); } },
         { divider: true },

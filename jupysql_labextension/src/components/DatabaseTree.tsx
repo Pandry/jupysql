@@ -420,15 +420,14 @@ export const DatabaseTree: React.FC<IDatabaseTreeProps> = ({
     // Ignore right-clicks here (they are handled by onContextMenu instead)
     if (event.button === 2) return;
 
-    if (node.type === 'connection') {
-      // Connection row click → open the details/edit panel (sidebar.tsx handles this).
-      // Expansion is driven by the arrow button only, so clicking anywhere else on
-      // the row doesn't accidentally collapse an open subtree.
-      if (onNodeClick) onNodeClick(node, event);
-    } else {
-      // For schemas / tables: toggle expansion on click; columns are leaf nodes
-      if (node.type !== 'column') toggleNode(node.id);
-      if (onNodeClick) onNodeClick(node, event);
+    // Left-click on any non-leaf node expands/collapses it
+    if (node.type !== 'column') {
+      toggleNode(node.id);
+    }
+
+    // Still notify the parent component for non-connection nodes
+    if (node.type !== 'connection' && onNodeClick) {
+      onNodeClick(node, event);
     }
   };
 
