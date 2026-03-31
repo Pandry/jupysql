@@ -53,8 +53,8 @@ metadata:
   name: example-postgres
   namespace: default
   labels:
-    jupysql.enabled: "true"
-    jupysql.username: "app"
+    jupysql.pandry.github.io/enabled: "true"
+    jupysql.pandry.github.io/username: "app"
     environment: "development"
 spec:
   instances: 3
@@ -84,9 +84,9 @@ metadata:
   name: example-postgres-rw
   namespace: default
   labels:
-    jupysql.enabled: "true"
-    jupysql.username: "app"
-    jupysql.pooler-type: "rw"
+    jupysql.pandry.github.io/enabled: "true"
+    jupysql.pandry.github.io/username: "app"
+    jupysql.pandry.github.io/pooler-type: "rw"
 spec:
   cluster:
     name: example-postgres
@@ -108,9 +108,9 @@ metadata:
   name: example-postgres-ro
   namespace: default
   labels:
-    jupysql.enabled: "true"
-    jupysql.username: "app"
-    jupysql.pooler-type: "ro"
+    jupysql.pandry.github.io/enabled: "true"
+    jupysql.pandry.github.io/username: "app"
+    jupysql.pandry.github.io/pooler-type: "ro"
 spec:
   cluster:
     name: example-postgres
@@ -135,7 +135,9 @@ data:
   # CNPG Provider Configuration
   JUPYSQL_CNPG_ENABLED: "true"
   JUPYSQL_CNPG_NAMESPACE: "default"
-  JUPYSQL_CNPG_LABEL_SELECTOR: "jupysql.enabled=true"
+  # Use the default label selector (jupysql.pandry.github.io/enabled=true)
+  # Uncomment below to override:
+  # JUPYSQL_CNPG_LABEL_SELECTOR: "jupysql.pandry.github.io/enabled=true"
   JUPYSQL_CNPG_AUTO_REFRESH_INTERVAL: "100"
   JUPYSQL_CNPG_DEBOUNCE_INTERVAL: "5"
 
