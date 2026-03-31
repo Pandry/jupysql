@@ -70,6 +70,8 @@ RUN pip install -e . && \
     jupytext \
     # ipywidgets
     ipywidgets \
+    # Voila dashboards with gridstack layout
+    voila voila-gridstack \
     # Chat
     jupyterlab-chat \
     # Git
