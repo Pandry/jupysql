@@ -970,28 +970,25 @@ class ProvidersHandler(BaseJupySQLHandler):
     async def get(self) -> None:
         """List all registered database providers and their status."""
         try:
-            code = """\
+            code = f"""\
 import json
+{_LOAD_EXT_SILENT}
 try:
     from sql.providers import get_factory
     factory = get_factory()
     providers = []
     for name in factory.list_providers():
         provider = factory.get_provider(name)
-        providers.append({
+        providers.append({{
             'name': name,
             'enabled': provider.is_enabled()
-        })
-    print(json.dumps({'providers': providers}))
+        }})
+    print(json.dumps({{'providers': providers}}))
 except Exception as e:
-    print(json.dumps({'error': str(e)}))
+    print(json.dumps({{'error': str(e)}}))
 """
-            result = await self._execute_kernel_request(code)
-            if result and 'error' not in result:
-                self.write_json(result)
-            else:
-                self.set_status(500)
-                self.write_json(result or {"error": "Failed to list providers"})
+            # _execute_kernel_request writes the response and returns True/False
+            await self._execute_kernel_request(code)
 
         except Exception as e:
             self.log.error(f"Error listing providers: {e}")
@@ -1019,18 +1016,22 @@ class AvailableDatabasesHandler(BaseJupySQLHandler):
 
             code = f"""\
 import json
+{_LOAD_EXT_SILENT}
 try:
     from sql.providers import get_factory
     factory = get_factory()
     databases = factory.list_databases(provider_names={providers_list})
 
-    # Convert DatabaseInfo objects to dicts
+    # Convert DatabaseInfo objects to dicts (without exposing passwords)
+    import re
     db_list = []
     for db in databases:
+        # Sanitize connection string to hide password
+        sanitized_conn = re.sub(r'://([^:]+):([^@]+)@', r'://\1:***@', db.connection_string or '')
         db_list.append({{
             'identifier': db.identifier,
             'name': db.name,
-            'connection_string': db.connection_string,
+            'connection_string': sanitized_conn,  # Password masked
             'provider': db.provider,
             'metadata': db.metadata,
             'host': db.host,
@@ -1045,12 +1046,8 @@ except Exception as e:
     import traceback
     print(json.dumps({{'error': str(e), 'traceback': traceback.format_exc()}}))
 """
-            result = await self._execute_kernel_request(code)
-            if result and 'error' not in result:
-                self.write_json(result)
-            else:
-                self.set_status(500)
-                self.write_json(result or {"error": "Failed to list databases"})
+            # _execute_kernel_request writes the response and returns True/False
+            await self._execute_kernel_request(code)
 
         except Exception as e:
             self.log.error(f"Error listing available databases: {e}")
@@ -1076,6 +1073,7 @@ class RefreshProvidersHandler(BaseJupySQLHandler):
             if provider_name:
                 code = f"""\
 import json
+{_LOAD_EXT_SILENT}
 try:
     from sql.providers import get_factory
     factory = get_factory()
@@ -1085,22 +1083,20 @@ except Exception as e:
     print(json.dumps({{'error': str(e)}}))
 """
             else:
-                code = """\
+                code = f"""\
 import json
+{_LOAD_EXT_SILENT}
 try:
     from sql.providers import get_factory
     factory = get_factory()
     factory.refresh_all()
-    print(json.dumps({'status': 'success', 'message': 'Refreshed all providers'}))
+    print(json.dumps({{'status': 'success', 'message': 'Refreshed all providers'}}))
 except Exception as e:
-    print(json.dumps({'error': str(e)}))\n"""
+    print(json.dumps({{'error': str(e)}}))
+"""
 
-            result = await self._execute_kernel_request(code)
-            if result and 'error' not in result:
-                self.write_json(result)
-            else:
-                self.set_status(500)
-                self.write_json(result or {"error": "Failed to refresh providers"})
+            # _execute_kernel_request writes the response and returns True/False
+            await self._execute_kernel_request(code)
 
         except Exception as e:
             self.log.error(f"Error refreshing providers: {e}")
@@ -1151,12 +1147,8 @@ except Exception as e:
     import traceback
     print(json.dumps({{'error': str(e), 'traceback': traceback.format_exc()}}))
 """
-            result = await self._execute_kernel_request(code)
-            if result and 'error' not in result:
-                self.write_json(result)
-            else:
-                self.set_status(500)
-                self.write_json(result or {"error": "Failed to connect from provider"})
+            # _execute_kernel_request writes the response and returns True/False
+            await self._execute_kernel_request(code)
 
         except Exception as e:
             self.log.error(f"Error connecting from provider: {e}")
