@@ -179,9 +179,9 @@ spec:
               value: "jupysql.pandry.github.io/enabled=true"
 ```
 
-## Multi-Namespace Setup
+## Multi-Namespace Setup (Cluster-Wide Discovery)
 
-If you need to discover databases across multiple namespaces:
+To discover databases across all namespaces, set `JUPYSQL_CNPG_NAMESPACE=*` or `JUPYSQL_CNPG_NAMESPACE=all` and use a ClusterRole:
 
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -208,6 +208,16 @@ roleRef:
   kind: ClusterRole
   name: jupysql-cnpg-reader
   apiGroup: rbac.authorization.k8s.io
+```
+
+Then configure JupySQL to use cluster-wide discovery:
+
+```yaml
+env:
+  - name: JUPYSQL_CNPG_ENABLED
+    value: "true"
+  - name: JUPYSQL_CNPG_NAMESPACE
+    value: "*"  # or "all" - queries all namespaces
 ```
 
 **⚠️ Warning**: ClusterRole grants access to ALL namespaces. Use with caution in production.
