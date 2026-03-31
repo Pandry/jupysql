@@ -27,10 +27,11 @@ class CNPGDatabaseProvider(DatabaseProvider):
 
     Configuration via environment variables:
     - JUPYSQL_CNPG_ENABLED: Enable CNPG provider (default: false)
-    - JUPYSQL_CNPG_NAMESPACE: Kubernetes namespace for discovery
+    - JUPYSQL_CNPG_NAMESPACE: Kubernetes namespace(s) for discovery
         - Not set/empty: auto-detect from service account, or cluster-wide if not in K8s
         - "*" or "all": query all namespaces (requires ClusterRole RBAC)
-        - specific value: query only that namespace
+        - "ns1,ns2,ns3": query multiple specific namespaces
+        - "single-ns": query only that namespace
     - JUPYSQL_CNPG_LABEL_SELECTOR: Label selector for clusters/poolers (default: jupysql.pandry.github.io/enabled=true)
     - JUPYSQL_CNPG_AUTO_REFRESH_INTERVAL: Auto-refresh interval in seconds (default: 100)
     - JUPYSQL_CNPG_DEBOUNCE_INTERVAL: Debounce interval for manual refresh in seconds (default: 5)
@@ -43,24 +44,32 @@ class CNPGDatabaseProvider(DatabaseProvider):
         self.enabled = os.getenv("JUPYSQL_CNPG_ENABLED", "false").lower() == "true"
 
         # Namespace configuration:
-        # - If JUPYSQL_CNPG_NAMESPACE is set to "*" or "all", query all namespaces (cluster-wide)
-        # - If JUPYSQL_CNPG_NAMESPACE is set to a specific value, query only that namespace
-        # - If not set, auto-detect from service account or fall back to cluster-wide
-        ns_env = os.getenv("JUPYSQL_CNPG_NAMESPACE", "")
-        if ns_env.lower() in ("*", "all", ""):
-            # Check if we can auto-detect namespace from service account
+        # - "*" or "all": query all namespaces (cluster-wide)
+        # - "ns1,ns2,ns3": query multiple specific namespaces
+        # - "single-ns": query only that namespace
+        # - "" (not set): auto-detect from service account, or cluster-wide if not in K8s
+        ns_env = os.getenv("JUPYSQL_CNPG_NAMESPACE", "").strip()
+        if ns_env.lower() in ("*", "all"):
+            # Explicitly set to "*" or "all" - use cluster-wide
+            self.namespaces = None
+            self.cluster_wide = True
+        elif ns_env == "":
+            # Not set - try to auto-detect from service account
             detected_ns = self._get_current_namespace()
-            if detected_ns and ns_env == "":
-                # Auto-detected from service account, use single namespace
-                self.namespace = detected_ns
+            if detected_ns:
+                self.namespaces = [detected_ns]
                 self.cluster_wide = False
             else:
-                # Explicitly set to "*" or "all", or no service account - use cluster-wide
-                self.namespace = None
+                # No service account - use cluster-wide
+                self.namespaces = None
                 self.cluster_wide = True
+        elif "," in ns_env:
+            # Comma-separated list of namespaces
+            self.namespaces = [ns.strip() for ns in ns_env.split(",") if ns.strip()]
+            self.cluster_wide = False
         else:
-            # Specific namespace provided
-            self.namespace = ns_env
+            # Single specific namespace
+            self.namespaces = [ns_env]
             self.cluster_wide = False
 
         self.label_selector = os.getenv("JUPYSQL_CNPG_LABEL_SELECTOR", "jupysql.pandry.github.io/enabled=true")
@@ -72,8 +81,10 @@ class CNPGDatabaseProvider(DatabaseProvider):
             logger.info(f"CNPG Provider initialized:")
             if self.cluster_wide:
                 logger.info(f"  Scope: cluster-wide (all namespaces)")
+            elif len(self.namespaces) == 1:
+                logger.info(f"  Namespace: {self.namespaces[0]}")
             else:
-                logger.info(f"  Namespace: {self.namespace}")
+                logger.info(f"  Namespaces: {', '.join(self.namespaces)}")
             logger.info(f"  Label selector: {self.label_selector}")
             logger.info(f"  Auto-refresh interval: {self.auto_refresh_interval}s")
             logger.info(f"  Debounce interval: {self.debounce_interval}s")
@@ -175,8 +186,10 @@ class CNPGDatabaseProvider(DatabaseProvider):
 
         if self.cluster_wide:
             logger.info(f"CNPG provider refresh starting (scope=cluster-wide, selector={self.label_selector})")
+        elif len(self.namespaces) == 1:
+            logger.info(f"CNPG provider refresh starting (namespace={self.namespaces[0]}, selector={self.label_selector})")
         else:
-            logger.info(f"CNPG provider refresh starting (namespace={self.namespace}, selector={self.label_selector})")
+            logger.info(f"CNPG provider refresh starting (namespaces={','.join(self.namespaces)}, selector={self.label_selector})")
 
         self._init_k8s_client()
         if self._k8s_client is None:
@@ -215,19 +228,21 @@ class CNPGDatabaseProvider(DatabaseProvider):
                     label_selector=self.label_selector,
                     _request_timeout=30,
                 )
+                cluster_items = clusters.get("items", [])
             else:
-                logger.debug(f"Querying K8s API for clusters in namespace '{self.namespace}' with selector '{self.label_selector}'")
-                # List CNPG Cluster resources in specific namespace
-                clusters = self._k8s_custom_api.list_namespaced_custom_object(
-                    group="postgresql.cnpg.io",
-                    version="v1",
-                    namespace=self.namespace,
-                    plural="clusters",
-                    label_selector=self.label_selector,
-                    _request_timeout=30,
-                )
-
-            cluster_items = clusters.get("items", [])
+                # Query each namespace and aggregate results
+                cluster_items = []
+                for namespace in self.namespaces:
+                    logger.debug(f"Querying K8s API for clusters in namespace '{namespace}' with selector '{self.label_selector}'")
+                    clusters = self._k8s_custom_api.list_namespaced_custom_object(
+                        group="postgresql.cnpg.io",
+                        version="v1",
+                        namespace=namespace,
+                        plural="clusters",
+                        label_selector=self.label_selector,
+                        _request_timeout=30,
+                    )
+                    cluster_items.extend(clusters.get("items", []))
             logger.debug(f"Found {len(cluster_items)} cluster(s) matching selector")
 
             for cluster in cluster_items:
@@ -265,19 +280,21 @@ class CNPGDatabaseProvider(DatabaseProvider):
                     label_selector=self.label_selector,
                     _request_timeout=30,
                 )
+                pooler_items = poolers.get("items", [])
             else:
-                logger.debug(f"Querying K8s API for poolers in namespace '{self.namespace}' with selector '{self.label_selector}'")
-                # List CNPG Pooler resources in specific namespace
-                poolers = self._k8s_custom_api.list_namespaced_custom_object(
-                    group="postgresql.cnpg.io",
-                    version="v1",
-                    namespace=self.namespace,
-                    plural="poolers",
-                    label_selector=self.label_selector,
-                    _request_timeout=30,
-                )
-
-            pooler_items = poolers.get("items", [])
+                # Query each namespace and aggregate results
+                pooler_items = []
+                for namespace in self.namespaces:
+                    logger.debug(f"Querying K8s API for poolers in namespace '{namespace}' with selector '{self.label_selector}'")
+                    poolers = self._k8s_custom_api.list_namespaced_custom_object(
+                        group="postgresql.cnpg.io",
+                        version="v1",
+                        namespace=namespace,
+                        plural="poolers",
+                        label_selector=self.label_selector,
+                        _request_timeout=30,
+                    )
+                    pooler_items.extend(poolers.get("items", []))
             logger.debug(f"Found {len(pooler_items)} pooler(s) matching selector")
 
             for pooler in pooler_items:
@@ -311,8 +328,11 @@ class CNPGDatabaseProvider(DatabaseProvider):
             logger.warning("Cluster has no name in metadata, skipping")
             return None
 
-        # Get namespace from resource metadata (important for cluster-wide queries)
-        namespace = metadata.get("namespace", self.namespace or "default")
+        # Get namespace from resource metadata (required for cluster-wide/multi-namespace queries)
+        namespace = metadata.get("namespace")
+        if not namespace:
+            logger.warning(f"Cluster '{name}' has no namespace in metadata, skipping")
+            return None
 
         labels = metadata.get("labels", {})
 
@@ -378,8 +398,11 @@ class CNPGDatabaseProvider(DatabaseProvider):
             logger.warning("Pooler has no name in metadata, skipping")
             return None
 
-        # Get namespace from resource metadata (important for cluster-wide queries)
-        namespace = metadata.get("namespace", self.namespace or "default")
+        # Get namespace from resource metadata (required for cluster-wide/multi-namespace queries)
+        namespace = metadata.get("namespace")
+        if not namespace:
+            logger.warning(f"Pooler '{name}' has no namespace in metadata, skipping")
+            return None
 
         labels = metadata.get("labels", {})
 

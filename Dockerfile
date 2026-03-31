@@ -125,11 +125,12 @@ ENV JUPYTER_ENABLE_LAB=yes
 # Enable CNPG provider (set to "false" to disable automatic discovery of CNPG clusters)
 ENV JUPYSQL_CNPG_ENABLED=true
 
-# Kubernetes namespace to search for CNPG clusters
+# Kubernetes namespace(s) to search for CNPG clusters
 # - Not set or empty: auto-detect from service account, or cluster-wide if not in K8s
 # - "*" or "all": query all namespaces (requires ClusterRole RBAC)
-# - specific value: query only that namespace
-# ENV JUPYSQL_CNPG_NAMESPACE=*
+# - "ns1,ns2,ns3": query multiple specific namespaces
+# - "single-ns": query only that namespace
+# ENV JUPYSQL_CNPG_NAMESPACE=database-ns,analytics-ns
 
 # Label selector for filtering CNPG clusters and poolers (default: jupysql.pandry.github.io/enabled=true)
 # Examples:
