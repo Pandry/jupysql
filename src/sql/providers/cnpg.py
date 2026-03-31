@@ -11,6 +11,7 @@ import logging
 from typing import List, Optional, Dict, Set
 from datetime import datetime
 import base64
+from urllib.parse import quote as url_quote
 
 from .base import DatabaseProvider, DatabaseInfo
 
@@ -56,6 +57,7 @@ class CNPGDatabaseProvider(DatabaseProvider):
         self._last_refresh = 0.0
         self._refresh_thread = None
         self._stop_refresh = threading.Event()
+        self._refreshing = False  # Flag to prevent concurrent refreshes
 
         # Kubernetes client (lazy loaded)
         self._k8s_client = None
@@ -119,13 +121,21 @@ class CNPGDatabaseProvider(DatabaseProvider):
         """
         current_time = time.time()
 
-        # Debounce check
+        # Debounce check and prevent concurrent refreshes
         with self._lock:
             if current_time - self._last_refresh < self.debounce_interval:
                 return
+            if self._refreshing:
+                logger.debug("Refresh already in progress, skipping")
+                return
             self._last_refresh = current_time
+            self._refreshing = True
 
-        self._do_refresh()
+        try:
+            self._do_refresh()
+        finally:
+            with self._lock:
+                self._refreshing = False
 
     def _do_refresh(self) -> None:
         """Actually perform the refresh (no debouncing)."""
@@ -164,13 +174,14 @@ class CNPGDatabaseProvider(DatabaseProvider):
         try:
             logger.debug(f"Querying K8s API for clusters in namespace '{self.namespace}' with selector '{self.label_selector}'")
 
-            # List CNPG Cluster resources
+            # List CNPG Cluster resources (with timeout to prevent hanging)
             clusters = self._k8s_custom_api.list_namespaced_custom_object(
                 group="postgresql.cnpg.io",
                 version="v1",
                 namespace=self.namespace,
                 plural="clusters",
                 label_selector=self.label_selector,
+                _request_timeout=30,
             )
 
             cluster_items = clusters.get("items", [])
@@ -203,13 +214,14 @@ class CNPGDatabaseProvider(DatabaseProvider):
         try:
             logger.debug(f"Querying K8s API for poolers in namespace '{self.namespace}' with selector '{self.label_selector}'")
 
-            # List CNPG Pooler resources
+            # List CNPG Pooler resources (with timeout to prevent hanging)
             poolers = self._k8s_custom_api.list_namespaced_custom_object(
                 group="postgresql.cnpg.io",
                 version="v1",
                 namespace=self.namespace,
                 plural="poolers",
                 label_selector=self.label_selector,
+                _request_timeout=30,
             )
 
             pooler_items = poolers.get("items", [])
@@ -242,6 +254,10 @@ class CNPGDatabaseProvider(DatabaseProvider):
         status = cluster.get("status", {})
 
         name = metadata.get("name")
+        if not name:
+            logger.warning("Cluster has no name in metadata, skipping")
+            return None
+
         labels = metadata.get("labels", {})
 
         # Get service name (rw service)
@@ -263,8 +279,11 @@ class CNPGDatabaseProvider(DatabaseProvider):
             logger.warning(f"Could not retrieve password for cluster '{name}', user '{username}'")
             return None
 
-        # Build connection string
-        connection_string = f"postgresql://{username}:{password}@{host}:{port}/{database}"
+        # Build connection string with URL-encoded credentials
+        # This handles special characters like @, :, /, # in passwords
+        encoded_username = url_quote(username, safe='')
+        encoded_password = url_quote(password, safe='')
+        connection_string = f"postgresql://{encoded_username}:{encoded_password}@{host}:{port}/{database}"
 
         # Create identifier
         identifier = f"cnpg:cluster:{self.namespace}:{name}"
@@ -299,6 +318,10 @@ class CNPGDatabaseProvider(DatabaseProvider):
         spec = pooler.get("spec", {})
 
         name = metadata.get("name")
+        if not name:
+            logger.warning("Pooler has no name in metadata, skipping")
+            return None
+
         labels = metadata.get("labels", {})
 
         # Get cluster reference
@@ -313,12 +336,11 @@ class CNPGDatabaseProvider(DatabaseProvider):
         port = 5432
 
         # Get pooler type from labels (rw or ro)
-        pooler_type = labels.get("jupysql.pooler-type", "rw")
+        pooler_type = labels.get("jupysql.pandry.github.io/pooler-type", "rw")
 
-        # Get database name from spec or use default
-        database = spec.get("pgbouncer", {}).get("parameters", {}).get("default_pool_size", "app")
-        if isinstance(database, int):
-            database = "app"
+        # Get database name from the referenced cluster
+        # Poolers connect to the same database as their parent cluster
+        database = self._get_cluster_database(cluster_ref)
 
         # Get username from labels or use default
         username = labels.get("jupysql.pandry.github.io/username", "app")
@@ -329,8 +351,11 @@ class CNPGDatabaseProvider(DatabaseProvider):
             logger.warning(f"Could not retrieve password for pooler '{name}', user '{username}'")
             return None
 
-        # Build connection string
-        connection_string = f"postgresql://{username}:{password}@{host}:{port}/{database}"
+        # Build connection string with URL-encoded credentials
+        # This handles special characters like @, :, /, # in passwords
+        encoded_username = url_quote(username, safe='')
+        encoded_password = url_quote(password, safe='')
+        connection_string = f"postgresql://{encoded_username}:{encoded_password}@{host}:{port}/{database}"
 
         # Create identifier
         identifier = f"cnpg:pooler:{self.namespace}:{name}"
@@ -374,7 +399,12 @@ class CNPGDatabaseProvider(DatabaseProvider):
             secret = self._k8s_client.read_namespaced_secret(
                 name=secret_name,
                 namespace=self.namespace,
+                _request_timeout=10,
             )
+
+            if secret.data is None:
+                logger.warning(f"Secret '{secret_name}' has no data")
+                return None
 
             password_b64 = secret.data.get("password")
             if password_b64:
@@ -385,10 +415,50 @@ class CNPGDatabaseProvider(DatabaseProvider):
 
         return None
 
+    def _get_cluster_database(self, cluster_name: str) -> str:
+        """
+        Get database name from a CNPG cluster.
+
+        Fetches the cluster resource to extract the database name from
+        spec.bootstrap.initdb.database. Defaults to 'app' if not found.
+        """
+        try:
+            cluster = self._k8s_custom_api.get_namespaced_custom_object(
+                group="postgresql.cnpg.io",
+                version="v1",
+                namespace=self.namespace,
+                plural="clusters",
+                name=cluster_name,
+                _request_timeout=10,
+            )
+            spec = cluster.get("spec", {})
+            database = spec.get("bootstrap", {}).get("initdb", {}).get("database", "app")
+            return database
+        except Exception as e:
+            logger.warning(f"Could not fetch cluster '{cluster_name}' for database name: {e}")
+            return "app"
+
     def _start_auto_refresh(self) -> None:
-        """Start background thread for auto-refresh."""
-        if self._refresh_thread is not None and self._refresh_thread.is_alive():
-            return
+        """Start background thread for auto-refresh.
+
+        Performs the initial refresh synchronously to ensure databases are
+        available immediately after initialization, then starts a background
+        thread for periodic refreshes.
+        """
+        with self._lock:
+            if self._refresh_thread is not None and self._refresh_thread.is_alive():
+                return
+
+            # Do initial refresh synchronously to avoid race condition where
+            # the UI queries for databases before the first refresh completes
+            logger.info("Performing initial CNPG refresh synchronously...")
+            self._refreshing = True
+
+        try:
+            self._do_refresh()
+        finally:
+            with self._lock:
+                self._refreshing = False
 
         self._stop_refresh.clear()
         self._refresh_thread = threading.Thread(target=self._auto_refresh_loop, daemon=True)
@@ -396,13 +466,20 @@ class CNPGDatabaseProvider(DatabaseProvider):
 
     def _auto_refresh_loop(self) -> None:
         """Background loop for auto-refreshing databases."""
-        # Initial refresh
-        self._do_refresh()
-
+        # Initial refresh already done in _start_auto_refresh()
         while not self._stop_refresh.is_set():
             self._stop_refresh.wait(self.auto_refresh_interval)
             if not self._stop_refresh.is_set():
-                self._do_refresh()
+                # Check if another refresh is in progress
+                with self._lock:
+                    if self._refreshing:
+                        continue
+                    self._refreshing = True
+                try:
+                    self._do_refresh()
+                finally:
+                    with self._lock:
+                        self._refreshing = False
 
     def stop(self) -> None:
         """Stop the auto-refresh background thread."""
