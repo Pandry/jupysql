@@ -199,6 +199,8 @@ class SqlMagic(Magics, Configurable):
     def _initialize_providers(self):
         """Initialize and register database providers."""
         import logging
+        import sys
+        import os
         from sql.providers import get_factory
         from sql.providers.static import StaticDatabaseProvider
         from sql.providers.config_file import ConfigFileDatabaseProvider
@@ -206,6 +208,11 @@ class SqlMagic(Magics, Configurable):
 
         logger = logging.getLogger(__name__)
         logger.info("Initializing database providers...")
+
+        # Debug output to stderr for visibility
+        print(f"[JupySQL] Initializing providers...", file=sys.stderr)
+        print(f"[JupySQL] JUPYSQL_CNPG_ENABLED={os.getenv('JUPYSQL_CNPG_ENABLED', 'NOT SET')}", file=sys.stderr)
+        print(f"[JupySQL] JUPYSQL_CNPG_NAMESPACE={os.getenv('JUPYSQL_CNPG_NAMESPACE', 'NOT SET')}", file=sys.stderr)
 
         factory = get_factory()
 
@@ -223,6 +230,14 @@ class SqlMagic(Magics, Configurable):
         cnpg_provider = CNPGDatabaseProvider()
         factory.register_provider(cnpg_provider)
         logger.info(f"Registered CNPG provider (enabled={cnpg_provider.is_enabled()})")
+        print(f"[JupySQL] CNPG provider registered, enabled={cnpg_provider.is_enabled()}", file=sys.stderr)
+
+        # If CNPG is enabled, show discovered databases
+        if cnpg_provider.is_enabled():
+            dbs = cnpg_provider.list_databases()
+            print(f"[JupySQL] CNPG discovered {len(dbs)} database(s)", file=sys.stderr)
+            for db in dbs:
+                print(f"[JupySQL]   - {db.name} ({db.identifier})", file=sys.stderr)
 
         logger.info(f"Provider initialization complete. Total providers: {len(factory.list_providers())}")
 

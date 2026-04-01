@@ -43,6 +43,10 @@ class CNPGDatabaseProvider(DatabaseProvider):
         # Configuration from environment
         self.enabled = os.getenv("JUPYSQL_CNPG_ENABLED", "false").lower() == "true"
 
+        # Debug: Print to stderr to ensure visibility
+        import sys
+        print(f"[CNPG] Provider __init__ called, enabled={self.enabled}", file=sys.stderr)
+
         # Namespace configuration:
         # - "*" or "all": query all namespaces (cluster-wide)
         # - "ns1,ns2,ns3": query multiple specific namespaces
@@ -180,16 +184,22 @@ class CNPGDatabaseProvider(DatabaseProvider):
 
     def _do_refresh(self) -> None:
         """Actually perform the refresh (no debouncing)."""
+        import sys
+
         if not self.enabled:
             logger.debug("CNPG provider is disabled, skipping refresh")
+            print(f"[CNPG] Refresh skipped - provider disabled", file=sys.stderr)
             return
 
         if self.cluster_wide:
-            logger.info(f"CNPG provider refresh starting (scope=cluster-wide, selector={self.label_selector})")
+            msg = f"CNPG provider refresh starting (scope=cluster-wide, selector={self.label_selector})"
         elif len(self.namespaces) == 1:
-            logger.info(f"CNPG provider refresh starting (namespace={self.namespaces[0]}, selector={self.label_selector})")
+            msg = f"CNPG provider refresh starting (namespace={self.namespaces[0]}, selector={self.label_selector})"
         else:
-            logger.info(f"CNPG provider refresh starting (namespaces={','.join(self.namespaces)}, selector={self.label_selector})")
+            msg = f"CNPG provider refresh starting (namespaces={','.join(self.namespaces)}, selector={self.label_selector})"
+
+        logger.info(msg)
+        print(f"[CNPG] {msg}", file=sys.stderr)
 
         self._init_k8s_client()
         if self._k8s_client is None:
