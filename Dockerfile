@@ -102,14 +102,13 @@ RUN jupyter server extension list && \
 RUN useradd -m -u 1000 -g 100 -d /home/shared -s /bin/bash jupyter
 
 # Create IPython startup script to auto-load %sql magic
-# This ensures database providers are initialized when any kernel starts
-RUN mkdir -p /home/shared/.ipython/profile_default/startup && \
-    echo "# Auto-load JupySQL extension to initialize database providers" > /home/shared/.ipython/profile_default/startup/00-jupysql-autoload.py && \
-    echo "try:" >> /home/shared/.ipython/profile_default/startup/00-jupysql-autoload.py && \
-    echo "    get_ipython().run_line_magic('load_ext', 'sql')" >> /home/shared/.ipython/profile_default/startup/00-jupysql-autoload.py && \
-    echo "except Exception:" >> /home/shared/.ipython/profile_default/startup/00-jupysql-autoload.py && \
-    echo "    pass" >> /home/shared/.ipython/profile_default/startup/00-jupysql-autoload.py && \
-    chown -R jupyter:users /home/shared/.ipython
+# Use system-wide location so it's not overwritten by home directory volume mounts
+RUN mkdir -p /usr/local/etc/ipython/profile_default/startup && \
+    echo "# Auto-load JupySQL extension to initialize database providers" > /usr/local/etc/ipython/profile_default/startup/00-jupysql-autoload.py && \
+    echo "try:" >> /usr/local/etc/ipython/profile_default/startup/00-jupysql-autoload.py && \
+    echo "    get_ipython().run_line_magic('load_ext', 'sql')" >> /usr/local/etc/ipython/profile_default/startup/00-jupysql-autoload.py && \
+    echo "except Exception:" >> /usr/local/etc/ipython/profile_default/startup/00-jupysql-autoload.py && \
+    echo "    pass" >> /usr/local/etc/ipython/profile_default/startup/00-jupysql-autoload.py
 
 USER jupyter
 WORKDIR /home/shared
