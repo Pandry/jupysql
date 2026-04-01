@@ -101,11 +101,18 @@ RUN jupyter server extension list && \
 
 RUN useradd -m -u 1000 -g 100 -d /home/shared -s /bin/bash jupyter
 
-# Configure IPython to auto-load the sql extension when kernel starts
-# This uses InteractiveShellApp.extensions which works for Jupyter kernels
-RUN mkdir -p /usr/local/etc/ipython/profile_default && \
-    echo "c = get_config()" > /usr/local/etc/ipython/profile_default/ipython_config.py && \
-    echo "c.InteractiveShellApp.extensions = ['sql']" >> /usr/local/etc/ipython/profile_default/ipython_config.py
+# Modify the Python kernel spec to auto-load the sql extension
+# This adds --InteractiveShellApp.extensions to the kernel's argv
+RUN KERNEL_DIR=$(python3 -c "import sysconfig; print(sysconfig.get_path('data'))")/share/jupyter/kernels/python3 && \
+    python3 -c "import json; \
+f = open('${KERNEL_DIR}/kernel.json'); \
+k = json.load(f); \
+f.close(); \
+k['argv'].extend(['--InteractiveShellApp.extensions=[\"sql\"]']); \
+k['display_name'] = 'Python 3 (JupySQL)'; \
+f = open('${KERNEL_DIR}/kernel.json', 'w'); \
+json.dump(k, f, indent=1); \
+f.close()"
 
 USER jupyter
 WORKDIR /home/shared
@@ -116,9 +123,6 @@ EXPOSE 8888
 
 # Set environment variables
 ENV JUPYTER_ENABLE_LAB=yes
-
-# Point IPython to system-wide config (not overwritten by home directory mounts)
-ENV IPYTHONDIR=/usr/local/etc/ipython
 
 # CNPG Database Provider Configuration
 # Enable CNPG provider (set to "false" to disable automatic discovery of CNPG clusters)
