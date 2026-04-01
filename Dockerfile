@@ -120,6 +120,9 @@ EXPOSE 8888
 # Set environment variables
 ENV JUPYTER_ENABLE_LAB=yes
 
+# Point IPython to system-wide config (not overwritten by home directory mounts)
+ENV IPYTHONDIR=/usr/local/etc/ipython
+
 # CNPG Database Provider Configuration
 # Enable CNPG provider (set to "false" to disable automatic discovery of CNPG clusters)
 ENV JUPYSQL_CNPG_ENABLED=true
