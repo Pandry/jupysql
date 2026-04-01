@@ -146,6 +146,7 @@ ENV JUPYSQL_CNPG_AUTO_REFRESH_INTERVAL=100
 # Debounce interval in seconds (default: 5)
 # Minimum time between manual refresh requests to prevent K8s API spam
 ENV JUPYSQL_CNPG_DEBOUNCE_INTERVAL=5
+ENV JUPYSQL_CNPG_NAMESPACE=* 
 
 # Run JupyterLab
 CMD ["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root", "--ServerApp.token=''", "--ServerApp.password=''", "--ServerApp.disable_check_xsrf=True"]
