@@ -201,33 +201,44 @@ class CNPGDatabaseProvider(DatabaseProvider):
         logger.info(msg)
         print(f"[CNPG] {msg}", file=sys.stderr)
 
+        t_start = time.time()
         self._init_k8s_client()
         if self._k8s_client is None:
             logger.warning("Kubernetes client not initialized, cannot refresh")
             return
+        t_client = time.time()
+        print(f"[CNPG] K8s client init: {t_client - t_start:.2f}s", file=sys.stderr)
 
         databases = []
 
         # Discover CNPG clusters
         clusters = self._discover_clusters()
+        t_clusters = time.time()
+        print(f"[CNPG] Cluster discovery: {t_clusters - t_client:.2f}s ({len(clusters)} found)", file=sys.stderr)
         logger.info(f"Discovered {len(clusters)} CNPG cluster(s)")
         databases.extend(clusters)
 
         # Discover CNPG poolers
         poolers = self._discover_poolers()
+        t_poolers = time.time()
+        print(f"[CNPG] Pooler discovery: {t_poolers - t_clusters:.2f}s ({len(poolers)} found)", file=sys.stderr)
         logger.info(f"Discovered {len(poolers)} CNPG pooler(s)")
         databases.extend(poolers)
 
         with self._lock:
             self._databases = databases
 
+        t_end = time.time()
+        print(f"[CNPG] Total refresh time: {t_end - t_start:.2f}s", file=sys.stderr)
         logger.info(f"CNPG provider refresh complete: {len(databases)} total database(s) available")
 
     def _discover_clusters(self) -> List[DatabaseInfo]:
         """Discover CNPG clusters with matching labels."""
+        import sys
         databases = []
 
         try:
+            t0 = time.time()
             if self.cluster_wide:
                 logger.debug(f"Querying K8s API for clusters (cluster-wide) with selector '{self.label_selector}'")
                 # List CNPG Cluster resources across all namespaces
@@ -253,6 +264,8 @@ class CNPGDatabaseProvider(DatabaseProvider):
                         _request_timeout=30,
                     )
                     cluster_items.extend(clusters.get("items", []))
+            t1 = time.time()
+            print(f"[CNPG]   Cluster list API call: {t1 - t0:.2f}s ({len(cluster_items)} items)", file=sys.stderr)
             logger.debug(f"Found {len(cluster_items)} cluster(s) matching selector")
 
             for cluster in cluster_items:
@@ -277,9 +290,11 @@ class CNPGDatabaseProvider(DatabaseProvider):
 
     def _discover_poolers(self) -> List[DatabaseInfo]:
         """Discover CNPG poolers with matching labels."""
+        import sys
         databases = []
 
         try:
+            t0 = time.time()
             if self.cluster_wide:
                 logger.debug(f"Querying K8s API for poolers (cluster-wide) with selector '{self.label_selector}'")
                 # List CNPG Pooler resources across all namespaces
@@ -305,6 +320,8 @@ class CNPGDatabaseProvider(DatabaseProvider):
                         _request_timeout=30,
                     )
                     pooler_items.extend(poolers.get("items", []))
+            t1 = time.time()
+            print(f"[CNPG]   Pooler list API call: {t1 - t0:.2f}s ({len(pooler_items)} items)", file=sys.stderr)
             logger.debug(f"Found {len(pooler_items)} pooler(s) matching selector")
 
             for pooler in pooler_items:
