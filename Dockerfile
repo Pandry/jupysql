@@ -101,18 +101,17 @@ RUN jupyter server extension list && \
 
 RUN useradd -m -u 1000 -g 100 -d /home/shared -s /bin/bash jupyter
 
-# Modify the Python kernel spec to auto-load the sql extension
-# This adds --InteractiveShellApp.extensions to the kernel's argv
-RUN KERNEL_DIR=$(python3 -c "import sysconfig; print(sysconfig.get_path('data'))")/share/jupyter/kernels/python3 && \
-    python3 -c "import json; \
-f = open('${KERNEL_DIR}/kernel.json'); \
-k = json.load(f); \
-f.close(); \
-k['argv'].extend(['--InteractiveShellApp.extensions=[\"sql\"]']); \
-k['display_name'] = 'Python 3 (JupySQL)'; \
-f = open('${KERNEL_DIR}/kernel.json', 'w'); \
-json.dump(k, f, indent=1); \
-f.close()"
+# Create IPython startup script to auto-load %sql magic
+# This ensures database providers are initialized when any kernel starts
+# Note: Requires volume mount at a subdirectory (e.g., /home/shared/notebooks)
+#       not at /home/shared itself, to preserve this directory
+RUN mkdir -p /home/shared/.ipython/profile_default/startup && \
+    echo "# Auto-load JupySQL extension to initialize database providers" > /home/shared/.ipython/profile_default/startup/00-jupysql-autoload.py && \
+    echo "try:" >> /home/shared/.ipython/profile_default/startup/00-jupysql-autoload.py && \
+    echo "    get_ipython().run_line_magic('load_ext', 'sql')" >> /home/shared/.ipython/profile_default/startup/00-jupysql-autoload.py && \
+    echo "except Exception:" >> /home/shared/.ipython/profile_default/startup/00-jupysql-autoload.py && \
+    echo "    pass" >> /home/shared/.ipython/profile_default/startup/00-jupysql-autoload.py && \
+    chown -R 1000:100 /home/shared/.ipython
 
 USER jupyter
 WORKDIR /home/shared
