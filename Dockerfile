@@ -1,65 +1,26 @@
-# Multi-stage Dockerfile for JupySQL with JupyterLab Extension
-# Stage 1: Build the JupyterLab extension
-FROM docker.io/library/python:3.11-slim AS builder
-
-# Install Node.js and build dependencies
-RUN apt-get update && apt-get install -y \
-    curl \
-    git \
-    build-essential \
-    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y nodejs \
-    && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /build
-
-# Copy package files first for better caching
-COPY package.json setup.py setup.cfg pyproject.toml MANIFEST.in README.md ./
-COPY jupysql_labextension/package.json jupysql_labextension/
-COPY jupysql_labextension/tsconfig.json jupysql_labextension/
-
-# Install Python dependencies (provides jupyter labextension build command)
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir 'jupyterlab>=4.0.0,<5'
-
-# Copy source code
-COPY src/ src/
-COPY jupysql_labextension/src/ jupysql_labextension/src/
-COPY jupysql_labextension/style/ jupysql_labextension/style/
-COPY jupyter-config/ jupyter-config/
-
-# Build the JupyterLab extension
-WORKDIR /build/jupysql_labextension
-RUN npm install && \
-    npm run build:lib && \
-    npm run build:labextension:dev
-
-# Verify the build output
-RUN ls -la ../jupysql/labextension/ || echo "Warning: labextension directory not created"
-
-# Stage 2: Final image with JupySQL installed
+# Dockerfile for JupySQL with JupyterLab Extension
+#
+# The labextension is pre-built locally (npm run build:lib && npm run
+# build:labextension:dev) and committed to jupysql/labextension/.
+# This avoids Node.js version issues in the container build.
 FROM docker.io/library/python:3.11-slim
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
     sqlite3 \
-    && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
-
-# Copy built extension and source from builder
-COPY --from=builder /build/ /app/
-
-# Install JupySQL with the built extension
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir 'jupyterlab>=4.0.0,<5' 'jupyterhub>=5.0,<6' 'jupyter-collaboration>=3.0,<4'
-
-# Binaries
-RUN apt-get update && apt-get install -y \
     curl \
     git \
     texlive-xetex \
     && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy entire project
+COPY . /app/
+
+# Install JupySQL with the pre-built extension
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir 'jupyterlab>=4.0.0,<5' 'jupyterhub>=5.0,<6' 'jupyter-collaboration>=3.0,<4'
 
 RUN pip install -e . && \
     # Mandatory DB
@@ -80,7 +41,7 @@ RUN pip install -e . && \
     jupyterlab-fasta jupyterlab-geojson jupyterlab-katex jupyterlab-mathjax2 jupyterlab-vega3 \
     # LaTex
     jupyterlab-latex
-    
+
 
 # pip install -e does not reliably copy data_files for editable installs in
 # modern pip (PEP 660).  Copy both artefacts explicitly.
@@ -101,16 +62,12 @@ RUN jupyter server extension list && \
 
 RUN useradd -m -u 1000 -g 100 -d /home/shared -s /bin/bash jupyter
 
-# Create IPython startup script to auto-load %sql magic
-# This ensures database providers are initialized when any kernel starts
+# Create IPython startup script to auto-load %sql magic and auto-connect
+# provider-discovered databases (e.g. CNPG clusters).
 # Note: Requires volume mount at a subdirectory (e.g., /home/shared/notebooks)
 #       not at /home/shared itself, to preserve this directory
 RUN mkdir -p /home/shared/.ipython/profile_default/startup && \
-    echo "# Auto-load JupySQL extension to initialize database providers" > /home/shared/.ipython/profile_default/startup/00-jupysql-autoload.py && \
-    echo "try:" >> /home/shared/.ipython/profile_default/startup/00-jupysql-autoload.py && \
-    echo "    get_ipython().run_line_magic('load_ext', 'sql')" >> /home/shared/.ipython/profile_default/startup/00-jupysql-autoload.py && \
-    echo "except Exception:" >> /home/shared/.ipython/profile_default/startup/00-jupysql-autoload.py && \
-    echo "    pass" >> /home/shared/.ipython/profile_default/startup/00-jupysql-autoload.py && \
+    cp scripts/00-jupysql-autoload.py /home/shared/.ipython/profile_default/startup/00-jupysql-autoload.py && \
     chown -R 1000:100 /home/shared/.ipython
 
 USER jupyter
@@ -148,7 +105,7 @@ ENV JUPYSQL_CNPG_AUTO_REFRESH_INTERVAL=100
 # Debounce interval in seconds (default: 5)
 # Minimum time between manual refresh requests to prevent K8s API spam
 ENV JUPYSQL_CNPG_DEBOUNCE_INTERVAL=5
-ENV JUPYSQL_CNPG_NAMESPACE=* 
+ENV JUPYSQL_CNPG_NAMESPACE=*
 
 # Run JupyterLab
 CMD ["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root", "--ServerApp.token=''", "--ServerApp.password=''", "--ServerApp.disable_check_xsrf=True"]

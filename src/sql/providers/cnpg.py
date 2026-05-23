@@ -18,6 +18,11 @@ from .base import DatabaseProvider, DatabaseInfo
 logger = logging.getLogger(__name__)
 
 
+def _debug_enabled() -> bool:
+    """Return True when JUPYSQL_DEBUG is set to a truthy value."""
+    return os.getenv("JUPYSQL_DEBUG", "").lower() in ("1", "true", "yes")
+
+
 class CNPGDatabaseProvider(DatabaseProvider):
     """
     Provider for CNPG (CloudNativePG) clusters in Kubernetes.
@@ -43,9 +48,9 @@ class CNPGDatabaseProvider(DatabaseProvider):
         # Configuration from environment
         self.enabled = os.getenv("JUPYSQL_CNPG_ENABLED", "false").lower() == "true"
 
-        # Debug: Print to stderr to ensure visibility
-        import sys
-        print(f"[CNPG] Provider __init__ called, enabled={self.enabled}", file=sys.stderr)
+        if _debug_enabled():
+            import sys
+            print(f"[CNPG] Provider __init__ called, enabled={self.enabled}", file=sys.stderr)
 
         # Namespace configuration:
         # - "*" or "all": query all namespaces (cluster-wide)
@@ -82,16 +87,16 @@ class CNPGDatabaseProvider(DatabaseProvider):
 
         # Log configuration on startup
         if self.enabled:
-            logger.info(f"CNPG Provider initialized:")
+            logger.debug(f"CNPG Provider initialized:")
             if self.cluster_wide:
-                logger.info(f"  Scope: cluster-wide (all namespaces)")
+                logger.debug(f"  Scope: cluster-wide (all namespaces)")
             elif len(self.namespaces) == 1:
-                logger.info(f"  Namespace: {self.namespaces[0]}")
+                logger.debug(f"  Namespace: {self.namespaces[0]}")
             else:
-                logger.info(f"  Namespaces: {', '.join(self.namespaces)}")
-            logger.info(f"  Label selector: {self.label_selector}")
-            logger.info(f"  Auto-refresh interval: {self.auto_refresh_interval}s")
-            logger.info(f"  Debounce interval: {self.debounce_interval}s")
+                logger.debug(f"  Namespaces: {', '.join(self.namespaces)}")
+            logger.debug(f"  Label selector: {self.label_selector}")
+            logger.debug(f"  Auto-refresh interval: {self.auto_refresh_interval}s")
+            logger.debug(f"  Debounce interval: {self.debounce_interval}s")
 
         # State
         self._databases: List[DatabaseInfo] = []
@@ -184,11 +189,10 @@ class CNPGDatabaseProvider(DatabaseProvider):
 
     def _do_refresh(self) -> None:
         """Actually perform the refresh (no debouncing)."""
-        import sys
+        debug = _debug_enabled()
 
         if not self.enabled:
             logger.debug("CNPG provider is disabled, skipping refresh")
-            print(f"[CNPG] Refresh skipped - provider disabled", file=sys.stderr)
             return
 
         if self.cluster_wide:
@@ -198,8 +202,10 @@ class CNPGDatabaseProvider(DatabaseProvider):
         else:
             msg = f"CNPG provider refresh starting (namespaces={','.join(self.namespaces)}, selector={self.label_selector})"
 
-        logger.info(msg)
-        print(f"[CNPG] {msg}", file=sys.stderr)
+        logger.debug(msg)
+        if debug:
+            import sys
+            print(f"[CNPG] {msg}", file=sys.stderr)
 
         t_start = time.time()
         self._init_k8s_client()
@@ -207,34 +213,35 @@ class CNPGDatabaseProvider(DatabaseProvider):
             logger.warning("Kubernetes client not initialized, cannot refresh")
             return
         t_client = time.time()
-        print(f"[CNPG] K8s client init: {t_client - t_start:.2f}s", file=sys.stderr)
 
         databases = []
 
         # Discover CNPG clusters
         clusters = self._discover_clusters()
         t_clusters = time.time()
-        print(f"[CNPG] Cluster discovery: {t_clusters - t_client:.2f}s ({len(clusters)} found)", file=sys.stderr)
-        logger.info(f"Discovered {len(clusters)} CNPG cluster(s)")
+        logger.debug(f"Discovered {len(clusters)} CNPG cluster(s)")
         databases.extend(clusters)
 
         # Discover CNPG poolers
         poolers = self._discover_poolers()
         t_poolers = time.time()
-        print(f"[CNPG] Pooler discovery: {t_poolers - t_clusters:.2f}s ({len(poolers)} found)", file=sys.stderr)
-        logger.info(f"Discovered {len(poolers)} CNPG pooler(s)")
+        logger.debug(f"Discovered {len(poolers)} CNPG pooler(s)")
         databases.extend(poolers)
 
         with self._lock:
             self._databases = databases
 
         t_end = time.time()
-        print(f"[CNPG] Total refresh time: {t_end - t_start:.2f}s", file=sys.stderr)
-        logger.info(f"CNPG provider refresh complete: {len(databases)} total database(s) available")
+        logger.debug(f"CNPG provider refresh complete: {len(databases)} total database(s) in {t_end - t_start:.2f}s")
+        if debug:
+            import sys
+            print(f"[CNPG] K8s client init: {t_client - t_start:.2f}s", file=sys.stderr)
+            print(f"[CNPG] Cluster discovery: {t_clusters - t_client:.2f}s ({len(clusters)} found)", file=sys.stderr)
+            print(f"[CNPG] Pooler discovery: {t_poolers - t_clusters:.2f}s ({len(poolers)} found)", file=sys.stderr)
+            print(f"[CNPG] Total refresh time: {t_end - t_start:.2f}s", file=sys.stderr)
 
     def _discover_clusters(self) -> List[DatabaseInfo]:
         """Discover CNPG clusters with matching labels."""
-        import sys
         databases = []
 
         try:
@@ -265,7 +272,9 @@ class CNPGDatabaseProvider(DatabaseProvider):
                     )
                     cluster_items.extend(clusters.get("items", []))
             t1 = time.time()
-            print(f"[CNPG]   Cluster list API call: {t1 - t0:.2f}s ({len(cluster_items)} items)", file=sys.stderr)
+            if _debug_enabled():
+                import sys
+                print(f"[CNPG]   Cluster list API call: {t1 - t0:.2f}s ({len(cluster_items)} items)", file=sys.stderr)
             logger.debug(f"Found {len(cluster_items)} cluster(s) matching selector")
 
             for cluster in cluster_items:
@@ -276,7 +285,7 @@ class CNPGDatabaseProvider(DatabaseProvider):
                     db_info = self._create_database_info_from_cluster(cluster)
                     if db_info:
                         databases.append(db_info)
-                        logger.info(f"Added cluster: {db_info.name} ({db_info.identifier})")
+                        logger.debug(f"Added cluster: {db_info.name} ({db_info.identifier})")
                     else:
                         logger.warning(f"Cluster '{cluster_name}' returned no database info (missing credentials?)")
                 except Exception as e:
@@ -290,7 +299,6 @@ class CNPGDatabaseProvider(DatabaseProvider):
 
     def _discover_poolers(self) -> List[DatabaseInfo]:
         """Discover CNPG poolers with matching labels."""
-        import sys
         databases = []
 
         try:
@@ -321,7 +329,9 @@ class CNPGDatabaseProvider(DatabaseProvider):
                     )
                     pooler_items.extend(poolers.get("items", []))
             t1 = time.time()
-            print(f"[CNPG]   Pooler list API call: {t1 - t0:.2f}s ({len(pooler_items)} items)", file=sys.stderr)
+            if _debug_enabled():
+                import sys
+                print(f"[CNPG]   Pooler list API call: {t1 - t0:.2f}s ({len(pooler_items)} items)", file=sys.stderr)
             logger.debug(f"Found {len(pooler_items)} pooler(s) matching selector")
 
             for pooler in pooler_items:
@@ -332,7 +342,7 @@ class CNPGDatabaseProvider(DatabaseProvider):
                     db_info = self._create_database_info_from_pooler(pooler)
                     if db_info:
                         databases.append(db_info)
-                        logger.info(f"Added pooler: {db_info.name} ({db_info.identifier})")
+                        logger.debug(f"Added pooler: {db_info.name} ({db_info.identifier})")
                     else:
                         logger.warning(f"Pooler '{pooler_name}' returned no database info")
                 except Exception as e:
@@ -569,7 +579,7 @@ class CNPGDatabaseProvider(DatabaseProvider):
 
             # Do initial refresh synchronously to avoid race condition where
             # the UI queries for databases before the first refresh completes
-            logger.info("Performing initial CNPG refresh synchronously...")
+            logger.debug("Performing initial CNPG refresh synchronously...")
             self._refreshing = True
 
         try:

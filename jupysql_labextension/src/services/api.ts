@@ -285,6 +285,13 @@ export class JupySQLAPI {
   }
 
   /**
+   * Refresh database providers and auto-connect discovered databases.
+   */
+  async refreshProviders(): Promise<{ status: string; discovered?: number; connected?: number; message?: string }> {
+    return this.post<{ status: string; discovered?: number; connected?: number; message?: string }>('providers/refresh', {});
+  }
+
+  /**
    * Get list of running kernels
    */
   async getKernels(): Promise<IKernel[]> {

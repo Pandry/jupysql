@@ -273,9 +273,6 @@ ConnectionManager.refresh_providers("cnpg")
 ### Magic Commands
 
 ```python
-# List available databases (future feature)
-%sql --list-available
-
 # Connect from provider
 %sql --from-provider cnpg:cluster:default:my-cluster --alias production
 ```

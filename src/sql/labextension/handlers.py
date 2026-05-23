@@ -148,12 +148,12 @@ class BaseJupySQLHandler(APIHandler):
 
         if not kernel_id:
             kernel_ids = list(km.list_kernel_ids())
-            self.log.info(f"Found {len(kernel_ids)} running kernels")
+            self.log.debug(f"Found {len(kernel_ids)} running kernels")
             if not kernel_ids:
-                self.log.warning("No running kernels found")
+                self.log.debug("No running kernels found")
                 return None
             kernel_id = kernel_ids[0]
-            self.log.info(f"Using kernel: {kernel_id}")
+            self.log.debug(f"Using kernel: {kernel_id}")
 
         # Guard: client must be assigned before the finally block so that
         # stop_channels() is only called when the client was actually created.
@@ -165,7 +165,7 @@ class BaseJupySQLHandler(APIHandler):
 
             result_data: Optional[str] = None
             msg_id = client.execute(code, silent=True, store_history=False)
-            self.log.info(f"Executed code in kernel, msg_id: {msg_id}")
+            self.log.debug(f"Executed code in kernel, msg_id: {msg_id}")
 
             loop = asyncio.get_event_loop()
             deadline = loop.time() + total_timeout
@@ -183,7 +183,7 @@ class BaseJupySQLHandler(APIHandler):
                     if msg_type == "stream":
                         chunk = msg["content"]["text"]
                         result_data = (result_data or "") + chunk
-                        self.log.info(
+                        self.log.debug(
                             f"Got stream chunk ({len(chunk)} chars), "
                             f"total so far: {len(result_data)}"
                         )
@@ -203,7 +203,7 @@ class BaseJupySQLHandler(APIHandler):
                     # loop back and check the wall-clock deadline.
                     pass
 
-            self.log.info(f"Final result: {result_data}")
+            self.log.debug(f"Final result: {result_data}")
             return result_data
 
         except Exception as e:
@@ -381,11 +381,11 @@ class ConnectionsHandler(BaseJupySQLHandler):
             if target_kernel_id:
                 # Query only the specified kernel
                 kernel_ids = [target_kernel_id]
-                self.log.info(f"Querying specific kernel: {target_kernel_id[:8]}")
+                self.log.debug(f"Querying specific kernel: {target_kernel_id[:8]}")
             else:
                 # Query all kernels
                 kernel_ids = list(km.list_kernel_ids())
-                self.log.info(f"Querying {len(kernel_ids)} kernels for connections")
+                self.log.debug(f"Querying {len(kernel_ids)} kernels for connections")
 
             all_connections = []
             seen_keys: set = set()
@@ -417,7 +417,7 @@ except Exception as e:
                     parsed = self._parse_kernel_result(result)
                     if not isinstance(parsed, list):
                         continue
-                    self.log.info(
+                    self.log.debug(
                         f"Kernel {kernel_id[:8]} has {len(parsed)} connections"
                     )
                     for conn_dict in parsed:
@@ -435,7 +435,7 @@ except Exception as e:
                         f"Error parsing connections from kernel {kernel_id}: {e}"
                     )
 
-            self.log.info(f"Total unique connections found: {len(all_connections)}")
+            self.log.debug(f"Total unique connections found: {len(all_connections)}")
             self.write_json({"connections": all_connections})
 
         except Exception as e:
@@ -553,7 +553,7 @@ except Exception as _e:
                 # Execute in all running kernels
                 km = self.settings["kernel_manager"]
                 kernel_ids = list(km.list_kernel_ids())
-                self.log.info(f"Adding connection to all {len(kernel_ids)} kernels")
+                self.log.debug(f"Adding connection to all {len(kernel_ids)} kernels")
 
                 success_count = 0
                 errors = []
@@ -808,7 +808,7 @@ class KernelsHandler(BaseJupySQLHandler):
             km = self.settings["kernel_manager"]
             sm = self.settings.get("session_manager")
             kernel_ids = list(km.list_kernel_ids())
-            self.log.info(f"Found {len(kernel_ids)} running kernels")
+            self.log.debug(f"Found {len(kernel_ids)} running kernels")
 
             kernels = []
 
@@ -1056,10 +1056,15 @@ except Exception as e:
 
 
 class RefreshProvidersHandler(BaseJupySQLHandler):
-    """POST /jupysql/providers/refresh — refresh database providers."""
+    """POST /jupysql/providers/refresh — refresh providers and auto-connect databases.
+
+    After refreshing the provider list, each discovered database is
+    automatically connected in all running kernels so that they show up
+    immediately in the sidebar databrowser.
+    """
 
     async def post(self) -> None:
-        """Refresh database providers to discover new databases.
+        """Refresh database providers and auto-connect discovered databases.
 
         Request body (optional): ``{ "provider_name": "<name>" }``
         If provider_name is not provided, refreshes all providers.
@@ -1070,33 +1075,62 @@ class RefreshProvidersHandler(BaseJupySQLHandler):
                 data = json.loads(self.request.body.decode("utf-8"))
                 provider_name = data.get("provider_name")
 
-            if provider_name:
-                code = f"""\
-import json
-{_LOAD_EXT_SILENT}
-try:
-    from sql.providers import get_factory
-    factory = get_factory()
-    factory.refresh_provider({repr(provider_name)})
-    print(json.dumps({{'status': 'success', 'message': f'Refreshed provider {{repr(provider_name)}}'}}))
-except Exception as e:
-    print(json.dumps({{'error': str(e)}}))
-"""
-            else:
-                code = f"""\
-import json
-{_LOAD_EXT_SILENT}
-try:
-    from sql.providers import get_factory
-    factory = get_factory()
-    factory.refresh_all()
-    print(json.dumps({{'status': 'success', 'message': 'Refreshed all providers'}}))
-except Exception as e:
-    print(json.dumps({{'error': str(e)}}))
-"""
+            provider_arg = repr(provider_name) if provider_name else "None"
 
-            # _execute_kernel_request writes the response and returns True/False
-            await self._execute_kernel_request(code)
+            # Single kernel snippet that:
+            #   1. Refreshes providers (all or specific)
+            #   2. Lists discovered databases
+            #   3. Auto-connects each one (skipping duplicates)
+            code = f"""\
+import json
+{_LOAD_EXT_SILENT}
+try:
+    from sql.connection import ConnectionManager
+    from sql.providers import get_factory
+    factory = get_factory()
+    _pname = {provider_arg}
+    if _pname:
+        factory.refresh_provider(_pname)
+    else:
+        factory.refresh_all()
+    _dbs = factory.list_databases(provider_names=[_pname] if _pname else None)
+    _connected = 0
+    for _db in _dbs:
+        try:
+            if _db.name and _db.name in ConnectionManager.connections:
+                continue
+            ConnectionManager.connect_from_provider(_db.identifier, alias=_db.name)
+            _connected += 1
+        except Exception:
+            pass
+    print(json.dumps({{
+        'status': 'success',
+        'discovered': len(_dbs),
+        'connected': _connected,
+        'message': f'Refreshed providers: {{len(_dbs)}} database(s), {{_connected}} newly connected',
+    }}))
+except Exception as e:
+    print(json.dumps({{'error': str(e)}}))
+"""
+            # Execute in ALL running kernels so every notebook gets the connections
+            km = self.settings["kernel_manager"]
+            kernel_ids = list(km.list_kernel_ids())
+
+            if not kernel_ids:
+                # No kernels: just report success (providers still refreshed server-side)
+                self.write_json({"status": "success", "discovered": 0, "connected": 0,
+                                 "message": "No running kernels"})
+                return
+
+            last_result = None
+            for kernel_id in kernel_ids:
+                result = await self.execute_in_kernel(code, kernel_id)
+                if result:
+                    parsed = self._parse_kernel_result(result)
+                    if parsed and parsed.get("status") == "success":
+                        last_result = parsed
+
+            self.write_json(last_result or {"status": "success", "message": "Refreshed providers"})
 
         except Exception as e:
             self.log.error(f"Error refreshing providers: {e}")

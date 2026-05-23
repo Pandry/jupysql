@@ -481,6 +481,11 @@ const DatabaseBrowserPanel: React.FC<IDatabaseBrowserPanelProps> = ({ app }) => 
       } catch {
         // Non-fatal: extension may already be loaded or no kernel running
       }
+      try {
+        await api.refreshProviders();
+      } catch {
+        // Non-fatal: providers may not be configured
+      }
       await loadConnections();
       await loadKernels();
     })();
@@ -797,10 +802,15 @@ const DatabaseBrowserPanel: React.FC<IDatabaseBrowserPanelProps> = ({ app }) => 
     menu.open(event.clientX, event.clientY);
   }, [app, ensureConnectionActive, insertIntoNotebook, handleDeleteConnection]);
 
-  /** Refresh both connections and kernels */
+  /** Refresh providers, auto-connect discovered databases, then reload UI */
   const handleRefresh = useCallback(async () => {
+    try {
+      await api.refreshProviders();
+    } catch {
+      // Non-fatal: providers may not be configured
+    }
     await Promise.all([loadConnections(), loadKernels()]);
-  }, [loadConnections, loadKernels]);
+  }, [api, loadConnections, loadKernels]);
 
   /** Submit the add-connection dialog */
   const handleConnect = async (connectionString: string, alias: string) => {
