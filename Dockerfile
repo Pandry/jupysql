@@ -1,8 +1,44 @@
-# Dockerfile for JupySQL with JupyterLab Extension
-#
-# The labextension is pre-built locally (npm run build:lib && npm run
-# build:labextension:dev) and committed to jupysql/labextension/.
-# This avoids Node.js version issues in the container build.
+# Multi-stage Dockerfile for JupySQL with JupyterLab Extension
+# Stage 1: Build the JupyterLab extension
+FROM docker.io/library/python:3.11-slim AS builder
+
+# Install Node.js and build dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    git \
+    build-essential \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+# Copy package files first for better caching
+COPY package.json setup.py setup.cfg pyproject.toml MANIFEST.in README.md ./
+COPY jupysql_labextension/package.json jupysql_labextension/
+COPY jupysql_labextension/tsconfig.json jupysql_labextension/
+
+# Install Python dependencies (provides jupyter labextension build command)
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir 'jupyterlab>=4.0.0,<5'
+
+# Copy source code
+COPY src/ src/
+COPY jupysql_labextension/src/ jupysql_labextension/src/
+COPY jupysql_labextension/style/ jupysql_labextension/style/
+COPY jupyter-config/ jupyter-config/
+
+# Build the JupyterLab extension
+# Patch: license-webpack-plugin 2.x crashes on webpack 5 module federation
+# "provide module" entries that lack an "=" sign.
+WORKDIR /build/jupysql_labextension
+RUN npm install && \
+    sed -i "s|return filename.split('=')\\[1\\].trim();|var _p = filename.split('='); return _p.length > 1 ? _p[1].trim() : null;|" \
+        node_modules/license-webpack-plugin/dist/WebpackModuleFileIterator.js && \
+    npm run build:lib && \
+    npm run build:labextension:dev
+
+# Stage 2: Final image with JupySQL installed
 FROM docker.io/library/python:3.11-slim
 
 # Install runtime dependencies
@@ -15,10 +51,10 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Copy entire project
-COPY . /app/
+# Copy built extension and source from builder
+COPY --from=builder /build/ /app/
 
-# Install JupySQL with the pre-built extension
+# Install JupySQL with the built extension
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir 'jupyterlab>=4.0.0,<5' 'jupyterhub>=5.0,<6' 'jupyter-collaboration>=3.0,<4'
 
@@ -66,8 +102,9 @@ RUN useradd -m -u 1000 -g 100 -d /home/shared -s /bin/bash jupyter
 # provider-discovered databases (e.g. CNPG clusters).
 # Note: Requires volume mount at a subdirectory (e.g., /home/shared/notebooks)
 #       not at /home/shared itself, to preserve this directory
-RUN mkdir -p /home/shared/.ipython/profile_default/startup && \
-    cp scripts/00-jupysql-autoload.py /home/shared/.ipython/profile_default/startup/00-jupysql-autoload.py && \
+RUN mkdir -p /home/shared/.ipython/profile_default/startup
+COPY scripts/00-jupysql-autoload.py /app/scripts/00-jupysql-autoload.py
+RUN cp scripts/00-jupysql-autoload.py /home/shared/.ipython/profile_default/startup/00-jupysql-autoload.py && \
     chown -R 1000:100 /home/shared/.ipython
 
 USER jupyter
@@ -81,29 +118,10 @@ EXPOSE 8888
 ENV JUPYTER_ENABLE_LAB=yes
 
 # CNPG Database Provider Configuration
-# Enable CNPG provider (set to "false" to disable automatic discovery of CNPG clusters)
 ENV JUPYSQL_CNPG_ENABLED=true
-
-# Kubernetes namespace(s) to search for CNPG clusters
-# - Not set or empty: auto-detect from service account, or cluster-wide if not in K8s
-# - "*" or "all": query all namespaces (requires ClusterRole RBAC)
-# - "ns1,ns2,ns3": query multiple specific namespaces
-# - "single-ns": query only that namespace
 # ENV JUPYSQL_CNPG_NAMESPACE=database-ns,analytics-ns
-
-# Label selector for filtering CNPG clusters and poolers (default: jupysql.pandry.github.io/enabled=true)
-# Examples:
-#   - jupysql.pandry.github.io/enabled=true (default)
-#   - app=myapp,environment=production
-#   - jupysql.pandry.github.io/enabled=true,tenant=acme
 ENV JUPYSQL_CNPG_LABEL_SELECTOR=jupysql.pandry.github.io/enabled=true
-
-# Auto-refresh interval in seconds (default: 100)
-# How often to automatically refresh the list of available databases
 ENV JUPYSQL_CNPG_AUTO_REFRESH_INTERVAL=100
-
-# Debounce interval in seconds (default: 5)
-# Minimum time between manual refresh requests to prevent K8s API spam
 ENV JUPYSQL_CNPG_DEBOUNCE_INTERVAL=5
 ENV JUPYSQL_CNPG_NAMESPACE=*
 
