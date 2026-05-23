@@ -134,15 +134,23 @@ class CNPGDatabaseProvider(DatabaseProvider):
         try:
             from kubernetes import client, config
 
-            # Try to load in-cluster config first (for running inside K8s)
+            # Create a dedicated Configuration so we don't depend on the
+            # global default (which other libraries may have overwritten).
+            cfg = client.Configuration()
             try:
-                config.load_incluster_config()
+                config.load_incluster_config(client_configuration=cfg)
             except config.ConfigException:
-                # Fall back to kubeconfig (for local development)
-                config.load_kube_config()
+                config.load_kube_config(client_configuration=cfg)
 
-            self._k8s_client = client.CoreV1Api()
-            self._k8s_custom_api = client.CustomObjectsApi()
+            # Workaround: kubernetes client v36 incluster loader sets
+            # api_key['authorization'] but auth_settings() expects
+            # api_key['BearerToken'].  Copy the token under both keys.
+            if 'authorization' in cfg.api_key and 'BearerToken' not in cfg.api_key:
+                cfg.api_key['BearerToken'] = cfg.api_key['authorization']
+
+            api_client = client.ApiClient(configuration=cfg)
+            self._k8s_client = client.CoreV1Api(api_client=api_client)
+            self._k8s_custom_api = client.CustomObjectsApi(api_client=api_client)
         except ImportError:
             logger.warning("kubernetes package not installed. CNPG provider disabled.")
             self.disable()
