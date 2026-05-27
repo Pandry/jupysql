@@ -76,7 +76,11 @@ RUN pip install -e . && \
     # Renderers
     jupyterlab-fasta jupyterlab-geojson jupyterlab-katex jupyterlab-mathjax2 jupyterlab-vega3 \
     # LaTex
-    jupyterlab-latex
+    jupyterlab-latex \
+    # Databao
+    databao-agent databao-context-engine \
+    #DuckDB
+    duckdb duckdb-engine
 
 
 # pip install -e does not reliably copy data_files for editable installs in
