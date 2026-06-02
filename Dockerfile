@@ -80,7 +80,11 @@ RUN pip install -e . && \
     # Databao
     databao-agent databao-context-engine \
     #DuckDB
-    duckdb duckdb-engine
+    duckdb duckdb-engine \
+    # Numpy
+    numpy \
+    # Marimo
+    'marimo[sandbox]>=0.23.4' marimo-jupyter-extension
 
 
 # pip install -e does not reliably copy data_files for editable installs in
