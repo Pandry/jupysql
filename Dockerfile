@@ -49,6 +49,8 @@ RUN apt-get update && apt-get install -y \
     curl \
     git \
     texlive-xetex \
+    # jq: needed (with bash and curl) by the marimo-pair skill scripts
+    jq \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -134,6 +136,14 @@ RUN cp scripts/00-jupysql-autoload.py /home/shared/.ipython/profile_default/star
 
 USER jupyter
 WORKDIR /home/shared
+
+# Claude Code CLI + marimo-pair plugin: pair an agent with a running marimo
+# notebook from a JupyterLab terminal. Log in once with `claude` → /login
+# (works with a Claude subscription); credentials live in ~/.claude.
+ENV PATH="/home/shared/.local/bin:${PATH}"
+RUN curl -fsSL https://claude.ai/install.sh | bash && \
+    claude plugin marketplace add marimo-team/marimo-pair && \
+    claude plugin install marimo-pair@marimo-pair
 
 
 # Expose JupyterLab port
