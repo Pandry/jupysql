@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     git \
     build-essential \
-    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
@@ -56,11 +56,13 @@ COPY --from=builder /build/ /app/
 
 # Install JupySQL with the built extension
 RUN pip install --no-cache-dir --upgrade pip && \
+    # jupyterhub must match the hub's major version: z2jh chart 4.4.x runs
+    # JupyterHub 5.5, so stay on 5.x until the chart moves to 6
     pip install --no-cache-dir 'jupyterlab>=4.0.0,<5' 'jupyterhub>=5.0,<6' 'jupyter-collaboration>=3.0,<4'
 
 RUN pip install -e . && \
     # Mandatory DB
-    pip install --no-cache-dir psycopg2-binary duckdb-engine matplotlib pandas \
+    pip install --no-cache-dir psycopg2-binary matplotlib pandas \
     # Kubernetes client for CNPG provider
     kubernetes \
     # Jupytext for declarative notebooks
@@ -74,17 +76,24 @@ RUN pip install -e . && \
     # Git
     jupyterlab-git \
     # Renderers
-    jupyterlab-fasta jupyterlab-geojson jupyterlab-katex jupyterlab-mathjax2 jupyterlab-vega3 \
+    jupyterlab-fasta jupyterlab-geojson jupyterlab-katex \
     # LaTex
     jupyterlab-latex \
     # Databao
     databao-agent databao-context-engine \
     #DuckDB
     duckdb duckdb-engine \
+    # SQLAlchemy 2.1 reflects Postgres collations via pg_catalog.pg_collation,
+    # which DuckDB lacks: duckdb-engine (0.17.0) column inspection fails
+    # (JupySQL's %sqlcmd columns, likely marimo's data sources panel too).
+    # Drop once duckdb-engine supports 2.1.
+    'sqlalchemy<2.1' \
     # Numpy
     numpy \
     # Marimo
-    'marimo[sandbox]>=0.23.4' marimo-jupyter-extension
+    # (recommended: SQL cells via polars/pyarrow, altair for the data sources
+    # panel, ruff formatting; lsp: completions/diagnostics in the editor)
+    'marimo[recommended,lsp]>=0.25.0' 'marimo-jupyter-extension>=0.5.0'
 
 
 # pip install -e does not reliably copy data_files for editable installs in

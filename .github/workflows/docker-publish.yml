@@ -8,8 +8,14 @@ on:
       - '[0-9]+.[0-9]+.[0-9]+'
     paths:
       - 'Dockerfile'
+      - '.dockerignore'
       - 'docker-compose*.yml'
       - 'src/**'
+      # Also baked into the image (see Dockerfile)
+      - 'scripts/**'
+      - 'jupyter-config/**'
+      - 'jupysql_labextension/**'
+      - 'package.json'
       - 'setup.py'
       - 'setup.cfg'
       - 'pyproject.toml'
