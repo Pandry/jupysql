@@ -237,7 +237,7 @@ ATTACH DATABASE 'my.db' AS test_schema
                 dict(),
                 dict(),
             ],
-            [[], []],
+            [],
             [],
             "test_table",
             None,

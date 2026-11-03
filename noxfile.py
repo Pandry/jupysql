@@ -99,7 +99,8 @@ def test_unit(session):
     SKIP_IMAGE_TEST = "--skip-image-tests" in session.posargs
 
     _install(session, integration=False)
-    session.install("sqlalchemy>=2")
+    # SQLAlchemy 2.1 defaults postgresql:// to psycopg (v3) instead of psycopg2
+    session.install("sqlalchemy>=2,<2.1")
     _check_sqlalchemy(session, version=2)
     _run_unit(session, skip_image_tests=SKIP_IMAGE_TEST)
 
@@ -113,7 +114,8 @@ def test_unit_sqlalchemy_one(session):
     SKIP_IMAGE_TEST = "--skip-image-tests" in session.posargs
 
     _install(session, integration=False)
-    session.install("sqlalchemy<2")
+    # pandas>=2.2 requires SQLAlchemy 2 for to_sql, and pandas<2.2 needs numpy<2
+    session.install("sqlalchemy<2", "pandas<2.2", "numpy<2", "pyarrow<25")
     _check_sqlalchemy(session, version=1)
     _run_unit(session, skip_image_tests=SKIP_IMAGE_TEST)
 

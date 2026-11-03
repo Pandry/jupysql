@@ -184,7 +184,9 @@ class Columns(DatabaseInspection):
         self._table = PrettyTable()
         self._table.field_names = _get_row_with_most_keys(columns)
 
-        for row in columns:
+        # rows without keys (e.g., empty dicts) have nothing to display, and
+        # prettytable>=3.18 fails rendering rows when there are no field names
+        for row in columns if self._table.field_names else []:
             self._table.add_row(
                 list(_add_missing_keys(self._table.field_names, row).values())
             )

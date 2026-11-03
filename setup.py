@@ -63,8 +63,7 @@ install_requires = [
 DEV = [
     "flake8",
     "pytest",
-    # 24/01/24 Pandas 2.2.0 breaking CI: https://github.com/ploomber/jupysql/issues/983
-    "pandas<2.2.0",  # previously pinned to 2.0.3
+    "pandas",
     "polars==0.17.2",  # 04/18/23 this breaks our CI
     "pyarrow",
     "invoke",
@@ -75,7 +74,8 @@ DEV = [
     "duckdb-engine",
     "pyodbc",
     # sql.plot module tests
-    "matplotlib==3.7.2",
+    # baseline images in src/tests/baseline_images depend on the exact version
+    "matplotlib==3.11.2",
     "black",
     # for %%sql --interact
     "ipywidgets",

@@ -29,14 +29,16 @@ COPY jupysql_labextension/style/ jupysql_labextension/style/
 COPY jupyter-config/ jupyter-config/
 
 # Build the JupyterLab extension
-# Patch: license-webpack-plugin 2.x crashes on webpack 5 module federation
-# "provide module" entries that lack an "=" sign.
 WORKDIR /build/jupysql_labextension
 RUN npm install && \
-    sed -i "s|return filename.split('=')\\[1\\].trim();|var _p = filename.split('='); return _p.length > 1 ? _p[1].trim() : null;|" \
-        node_modules/license-webpack-plugin/dist/WebpackModuleFileIterator.js && \
     npm run build:lib && \
     npm run build:labextension:dev
+
+# databao-agent's release files were removed from PyPI: build a wheel of its
+# last tag here, where Node is available for its frontend (built with pnpm)
+RUN npm install -g pnpm@10.14.0 && \
+    pip wheel --no-cache-dir --no-deps -w /wheels \
+        'databao-agent @ git+https://github.com/JetBrains/databao-agent@v0.2.3'
 
 # Stage 2: Final image with JupySQL installed
 FROM docker.io/library/python:3.11-slim
@@ -53,6 +55,7 @@ WORKDIR /app
 
 # Copy built extension and source from builder
 COPY --from=builder /build/ /app/
+COPY --from=builder /wheels/ /wheels/
 
 # Install JupySQL with the built extension
 RUN pip install --no-cache-dir --upgrade pip && \
@@ -79,8 +82,8 @@ RUN pip install -e . && \
     jupyterlab-fasta jupyterlab-geojson jupyterlab-katex \
     # LaTex
     jupyterlab-latex \
-    # Databao
-    databao-agent databao-context-engine \
+    # Databao (databao-agent wheel built in the builder stage)
+    /wheels/databao_agent-*.whl databao-context-engine \
     #DuckDB
     duckdb duckdb-engine \
     # SQLAlchemy 2.1 reflects Postgres collations via pg_catalog.pg_collation,
@@ -105,9 +108,14 @@ RUN mkdir -p /usr/local/share/jupyter/labextensions/jupysql-labextension && \
 
 # 2. Jupyter Server extension config → sys-prefix config dir so the server
 #    picks it up at startup without needing 'jupyter server extension enable'
+# 3. Server settings (config.d files only carry jpserver_extensions): run
+#    marimo without its default uv sandbox, which creates a fresh
+#    per-notebook venv that can't see the packages installed above
 RUN mkdir -p /usr/local/etc/jupyter/jupyter_server_config.d/ && \
     cp jupyter-config/jupyter_server_config.d/jupysql.json \
-       /usr/local/etc/jupyter/jupyter_server_config.d/jupysql.json
+       /usr/local/etc/jupyter/jupyter_server_config.d/jupysql.json && \
+    cp jupyter-config/jupyter_server_config.json \
+       /usr/local/etc/jupyter/jupyter_server_config.json
 
 # Verify installation
 RUN jupyter server extension list && \
